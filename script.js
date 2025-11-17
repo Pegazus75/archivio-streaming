@@ -17,7 +17,6 @@ function showHome() {
 }
 window.showHome = showHome;
 
-// Funzione anni per film (solo 4 cifre esatte)
 function generaListaAnniFilm(arr) {
   const anniSet = new Set();
   arr.forEach(e => {
@@ -29,7 +28,6 @@ function generaListaAnniFilm(arr) {
   return Array.from(anniSet).sort().reverse();
 }
 
-// Funzione anni per serie (prende solo primi 4 caratteri numerici anno)
 function generaListaAnniSerie(arr) {
   const anniSet = new Set();
   arr.forEach(e => {
@@ -49,7 +47,7 @@ function creaSchedaFilm(elemento) {
     <p>Anno: ${elemento.anno || elemento.anno_csv || '?'}</p>
     <p>Genere: ${(Array.isArray(elemento.generi) ? elemento.generi.join(', ') : (elemento.genere || ''))}</p>
     <p>Rating: ${elemento.rating || 'n/d'}</p>
-    <p class="trama-corta" title="${elemento.trama || ''}">${(elemento.trama || '').replace(/</g,'').replace(/>/g,'')}</p>
+    <p>${(elemento.trama || '').replace(/</g,'').replace(/>/g,'')}</p>
     ${
       elemento.telegram_code
       ? `<a href="https://t.me/${TELEGRAM_BOT}?start=${elemento.telegram_code}" target="_blank" class="tg-btn">Su Telegram</a>`
@@ -68,8 +66,8 @@ function creaSchedaSerieCollapsed(elemento, index) {
     <p>Anno: ${elemento.anno || '?'}</p>
     <p>Genere: ${(Array.isArray(elemento.generi) ? elemento.generi.join(', ') : (elemento.genere || ''))}</p>
     <p>Rating: ${elemento.rating || 'n/d'}</p>
-    <p class="trama-corta" title="${elemento.trama || ''}">${(elemento.trama || '').replace(/</g,'').replace(/>/g,'')}</p>
-    <span style="color:#72e9ff; font-size:1em;">&#9654; Clicca per dettagli</span>
+    <p>${(elemento.trama || '').replace(/</g,'').replace(/>/g,'')}</p>
+    <span style="color:#72e9ff; font-size:1em;">▶ Clicca per dettagli</span>
   `;
   div.onclick = () => mostraDettagliSerie(index, elemento);
   return div;
@@ -121,15 +119,6 @@ function generaListaGeneri(arr) {
   });
   return Array.from(generiSet).sort();
 }
-function generaListaAnni(arr) {
-  // Questa non più usata, ma lascia qui per riferimento
-  const anniSet = new Set();
-  arr.forEach(e => {
-    const anno = e.anno || e.anno_csv;
-    if (anno) anniSet.add(anno.toString());
-  });
-  return Array.from(anniSet).sort().reverse();
-}
 
 function filtraCineteca(arr, g, a, t) {
   return arr.filter(f =>
@@ -139,6 +128,7 @@ function filtraCineteca(arr, g, a, t) {
     && (!t || (f.titolo || '').toLowerCase().includes(t))
     && !((f.generi || []).includes('Animazione')));
 }
+
 function filtraAnimazione(arr, g, a, t) {
   return arr.filter(f =>
     (f.generi || []).includes('Animazione')
@@ -146,6 +136,7 @@ function filtraAnimazione(arr, g, a, t) {
     && (!a || (f.anno_csv === a || f.anno === a))
     && (!t || (f.titolo || '').toLowerCase().includes(t)));
 }
+
 function filtraFilm2000(arr, g, a, t) {
   return arr.filter(f =>
     f.anno_csv && +f.anno_csv >= 2000
@@ -172,6 +163,7 @@ function mostraListaFilmPaginata(lista, containerId, btnId, step=12) {
   btn.onclick = renderChunk;
   renderChunk();
 }
+
 let serieFiltrataUltima = [];
 function mostraListaSeriePaginata(lista, containerId, btnId, step=12) {
   serieFiltrataUltima = lista;
@@ -243,24 +235,51 @@ async function main() {
   // FILM filtri
   const generiF = generaListaGeneri(Object.values(filmData));
   const anniF = generaListaAnniFilm(Object.values(filmData));
-  generiF.forEach(g=>{const o=document.createElement("option");o.value=g;o.text=g;document.getElementById("genere-film").appendChild(o)});
-  anniF.forEach(a=>{const o=document.createElement("option");o.value=a;o.text=a;document.getElementById("anno-film").appendChild(o)});
+  generiF.forEach(g=>{
+    const o=document.createElement("option");
+    o.value=g;
+    o.text=g;
+    document.getElementById("genere-film").appendChild(o)
+  });
+  anniF.forEach(a=>{
+    const o=document.createElement("option");
+    o.value=a;
+    o.text=a;
+    document.getElementById("anno-film").appendChild(o)
+  });
   document.getElementById("search-btn-film").onclick = mostraFilm;
-  document.getElementById("search-input-film").addEventListener("keyup", e=>{if(e.key==="Enter") mostraFilm();});
+  document.getElementById("search-input-film").addEventListener("keyup", e=>{
+    if(e.key==="Enter")
+      mostraFilm();
+  });
   document.getElementById("genere-film").onchange = mostraFilm;
   document.getElementById("anno-film").onchange = mostraFilm;
 
   // SERIE filtri
   const generiS = generaListaGeneri(Object.values(serieData));
   const anniS = generaListaAnniSerie(Object.values(serieData));
-  generiS.forEach(g=>{const o=document.createElement("option");o.value=g;o.text=g;document.getElementById("genere-serie").appendChild(o)});
-  anniS.forEach(a=>{const o=document.createElement("option");o.value=a;o.text=a;document.getElementById("anno-serie").appendChild(o)});
+  generiS.forEach(g=>{
+    const o=document.createElement("option");
+    o.value=g;
+    o.text=g;
+    document.getElementById("genere-serie").appendChild(o)
+  });
+  anniS.forEach(a=>{
+    const o=document.createElement("option");
+    o.value=a;
+    o.text=a;
+    document.getElementById("anno-serie").appendChild(o)
+  });
   document.getElementById("search-btn-serie").onclick = mostraSerie;
-  document.getElementById("search-input-serie").addEventListener("keyup", e=>{if(e.key==="Enter") mostraSerie();});
+  document.getElementById("search-input-serie").addEventListener("keyup", e=>{
+    if(e.key==="Enter")
+      mostraSerie();
+  });
   document.getElementById("genere-serie").onchange = mostraSerie;
   document.getElementById("anno-serie").onchange = mostraSerie;
 
   // ULTIMI INSERIMENTI
   document.getElementById("filtro-ultimi").onchange = mostraUltimiInserimenti;
 }
+
 main();

@@ -1,0 +1,30 @@
+1) Apri la CARTELLA dove hai i file del sito
+
+    Apri “Esplora risorse” (Explorer) e cerca la cartella dove hai index.html, style.css, script.js, serie.json, ecc.
+
+    Clicca col tasto destro sulla cartella → Git Bash Here
+    (Se non vedi questa voce, apri Git Bash e usa il comando cd per entrare nella cartella dei tuoi file:
+    esempio:
+
+    text
+    cd "C:/Users/TuoNomeUtente/Desktop/mia-cartella-sito"
+
+    cambia il percorso in base a dove hai i tuoi file!)
+
+2) Dai i comandi SOLO nella cartella giusta!
+
+Assicurati che quando digiti il comando la vedi la lista dei tuoi file del sito e index.html.
+Poi LANCIA questi comandi uno dopo l’altro:
+
+text
+git init
+git add .
+git commit -m "primo upload"
+git branch -M main
+git remote add origin https://github.com/TUO-NOME-UTENTE/NOME-REPO.git
+git push -u origin main
+
+IMPORTANTE:
+
+    Sostituisci TUO-NOME-UTENTE e NOME-REPO con i tuoi valori reali dalla pagina GitHub!
+ https://github.com/Pegazus75/archivio-streaming.git

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Archivio Film e Serie</title>
+
+  <!-- Il tuo CSS principale -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- CSS TRAMA ESPANDIBILE -->
+  <style>
+    .card-trama {
+      max-height: 90px;
+      overflow: hidden;
+      position: relative;
+      transition: max-height 0.35s ease;
+      line-height: 1.4em;
+      font-size: 15px;
+    }
+
+    .card-trama.expanded {
+      max-height: 1200px;
+    }
+
+    .fade-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 40px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1));
+      pointer-events: none;
+    }
+
+    .read-more-btn {
+      margin-top: 6px;
+      background: none;
+      border: none;
+      color: #007bff;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .read-more-btn:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="homepage" class="hero-bg">
+    <h1>Benvenuto nel tuo archivio streaming</h1>
+    <div class="home-menu">
+      <button id="go-films" class="menu-btn">Film</button>
+      <button id="go-series" class="menu-btn">Serie TV</button>
+      <button id="go-latest" class="menu-btn">Ultimi inserimenti</button>
+    </div>
+  </div>
+
+  <section id="film-section" class="hidden">
+    <div class="sticky-top">
+      <button class="menu-btn back-btn" onclick="showHome()">Home</button>
+      <h1 class="sticky-title">Film</h1>
+      <div class="filters">
+        <input type="text" id="search-input-film" placeholder="Cerca film...">
+        <button id="search-btn-film" aria-label="Cerca"><span>&#128269;</span></button>
+        <label for="genere-film">Genere:</label>
+        <select id="genere-film"><option value="">Tutti i generi</option></select>
+        <label for="anno-film">Anno:</label>
+        <select id="anno-film"><option value="">Tutti gli anni</option></select>
+      </div>
+    </div>
+
+    <div class="film-columns">
+      <div>
+        <h2 class="sticky-h2">Cineteca</h2>
+        <div id="cineteca-container" class="schede-grid"></div>
+        <button id="carica-cineteca" class="carica-btn"></button>
+      </div>
+
+      <div>
+        <h2 class="sticky-h2">Film dal 2000</h2>
+        <div id="film2000-container" class="schede-grid"></div>
+        <button id="carica-film2000" class="carica-btn"></button>
+      </div>
+
+      <div>
+        <h2 class="sticky-h2">Animazione</h2>
+        <div id="animazioni-container" class="schede-grid"></div>
+        <button id="carica-animazione" class="carica-btn"></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="serie-section" class="hidden">
+    <div class="sticky-top">
+      <button class="menu-btn back-btn" onclick="showHome()">Home</button>
+      <h1 class="sticky-title">Serie TV</h1>
+      <div class="filters">
+        <input type="text" id="search-input-serie" placeholder="Cerca serie...">
+        <button id="search-btn-serie" aria-label="Cerca"><span>&#128269;</span></button>
+        <label for="genere-serie">Genere:</label>
+        <select id="genere-serie"><option value="">Tutti i generi</option></select>
+        <label for="anno-serie">Anno:</label>
+        <select id="anno-serie"><option value="">Tutti gli anni</option></select>
+      </div>
+    </div>
+
+    <div id="serie-container" class="schede-grid"></div>
+    <button id="carica-serie" class="carica-btn"></button>
+  </section>
+
+  <section id="latest-section" class="hidden">
+    <div class="sticky-top">
+      <button class="menu-btn back-btn" onclick="showHome()">Home</button>
+      <h1 class="sticky-title">Ultimi inserimenti</h1>
+      <div class="filters">
+        <label for="filtro-ultimi">Tipo:</label>
+        <select id="filtro-ultimi">
+          <option value="">Tutti</option>
+          <option value="film">Solo Film</option>
+          <option value="serie">Solo Serie</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="latest-container" class="schede-grid"></div>
+  </section>
+
+  <!-- SCRIPT TRAMA ESPANDIBILE -->
+  <script>
+    function toggleTrama(id) {
+      const trama = document.getElementById("trama-" + id);
+      const btn = trama.parentElement.querySelector(".read-more-btn");
+      const fade = trama.parentElement.querySelector(".fade-bottom");
+
+      if (trama.classList.contains("expanded")) {
+        trama.classList.remove("expanded");
+        btn.textContent = "Continua a leggere...";
+        fade.style.display = "block";
+      } else {
+        trama.classList.add("expanded");
+        btn.textContent = "Riduci";
+        fade.style.display = "none";
+      }
+    }
+  </script>
+
+  <!-- Il tuo script originale -->
+  <script src="script.js"></script>
+</body>
+</html>
