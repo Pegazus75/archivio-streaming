@@ -1,84 +1,56 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <title>Archivio Film e Serie</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cineteca Streaming</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="homepage" class="hero-bg">
-    <h1>Benvenuto nel tuo archivio streaming</h1>
-    <div class="home-menu">
-      <button id="go-films" class="menu-btn">Film</button>
-      <button id="go-series" class="menu-btn">Serie TV</button>
-      <button id="go-latest" class="menu-btn">Ultimi inserimenti</button>
+  <header class="site-header">
+    <div class="header-inner">
+      <h1 class="logo">Cineteca</h1>
+
+      <nav class="top-tabs" aria-label="Categorie">
+        <button class="tab active" data-view="all">Home</button>
+        <button class="tab" data-view="latest">Ultimi</button>
+        <button class="tab" data-view="films">Film</button>
+        <button class="tab" data-view="series">Serie</button>
+        <button class="tab" data-view="cineteca">Cineteca</button>
+        <button class="tab" data-view="animation">Animazione</button>
+      </nav>
+
+      <div class="controls">
+        <input id="searchBox" placeholder="Cerca titolo..." />
+        <select id="genreFilter"><option value="">Tutti i generi</option></select>
+        <select id="yearFilter"><option value="">Tutti gli anni</option></select>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <!-- Il JS ricostruisce qui la Home (hero + rows) oppure la pagina categoria -->
+    <!-- Inizialmente lasciamo vuoto, lo script creerà la HOME al load -->
+  </main>
+
+  <!-- Modal dettaglio -->
+  <div id="detailModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-content">
+      <button id="modalClose" class="modal-close">✕</button>
+      <div class="modal-body">
+        <img id="modalPoster" src="" alt="Poster">
+        <div class="modal-info">
+          <h3 id="modalTitle">Titolo</h3>
+          <div id="modalMeta" class="meta"></div>
+          <p id="modalPlot"></p>
+          <div id="seasonTabs" style="margin-top:8px;"></div>
+          <div id="modalEpisodes" style="margin-top:12px;"></div>
+          <a id="modalTelegram" href="#" target="_blank" rel="noopener" style="display:none;margin-top:12px;padding:8px 12px;background:#ff4444;color:#fff;border-radius:8px;text-decoration:none">Apri su Telegram</a>
+        </div>
+      </div>
     </div>
   </div>
 
-  <section id="film-section" class="hidden">
-    <div class="sticky-top">
-      <button class="menu-btn back-btn" onclick="showHome()">Home</button>
-      <h1 class="sticky-title">Film</h1>
-      <div class="filters">
-        <input type="text" id="search-input-film" placeholder="Cerca film...">
-        <button id="search-btn-film" aria-label="Cerca"><span>&#128269;</span></button>
-        <label for="genere-film">Genere:</label>
-        <select id="genere-film"><option value="">Tutti i generi</option></select>
-        <label for="anno-film">Anno:</label>
-        <select id="anno-film"><option value="">Tutti gli anni</option></select>
-      </div>
-    </div>
-    <div class="film-columns">
-      <div>
-        <h2 class="sticky-h2">Cineteca</h2>
-        <div id="cineteca-container" class="schede-grid"></div>
-        <button id="carica-cineteca" class="carica-btn"></button>
-      </div>
-      <div>
-        <h2 class="sticky-h2">Film dal 2000</h2>
-        <div id="film2000-container" class="schede-grid"></div>
-        <button id="carica-film2000" class="carica-btn"></button>
-      </div>
-      <div>
-        <h2 class="sticky-h2">Animazione</h2>
-        <div id="animazioni-container" class="schede-grid"></div>
-        <button id="carica-animazione" class="carica-btn"></button>
-      </div>
-    </div>
-  </section>
-
-  <section id="serie-section" class="hidden">
-    <div class="sticky-top">
-      <button class="menu-btn back-btn" onclick="showHome()">Home</button>
-      <h1 class="sticky-title">Serie TV</h1>
-      <div class="filters">
-        <input type="text" id="search-input-serie" placeholder="Cerca serie...">
-        <button id="search-btn-serie" aria-label="Cerca"><span>&#128269;</span></button>
-        <label for="genere-serie">Genere:</label>
-        <select id="genere-serie"><option value="">Tutti i generi</option></select>
-        <label for="anno-serie">Anno:</label>
-        <select id="anno-serie"><option value="">Tutti gli anni</option></select>
-      </div>
-    </div>
-    <div id="serie-container" class="schede-grid"></div>
-    <button id="carica-serie" class="carica-btn"></button>
-  </section>
-
-  <section id="latest-section" class="hidden">
-    <div class="sticky-top">
-      <button class="menu-btn back-btn" onclick="showHome()">Home</button>
-      <h1 class="sticky-title">Ultimi inserimenti</h1>
-      <div class="filters">
-        <label for="filtro-ultimi">Tipo:</label>
-        <select id="filtro-ultimi">
-          <option value="">Tutti</option>
-          <option value="film">Solo Film</option>
-          <option value="serie">Solo Serie</option>
-        </select>
-      </div>
-    </div>
-    <div id="latest-container" class="schede-grid"></div>
-  </section>
   <script src="script.js"></script>
 </body>
 </html>

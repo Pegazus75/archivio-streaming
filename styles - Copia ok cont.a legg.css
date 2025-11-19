@@ -1,0 +1,156 @@
+/* ========== styles.css (unificato) ========== */
+
+/* globale (tue regole originali) */
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #171e24;
+  color: #eee;
+}
+
+.hero-bg {
+  min-height: 100vh;
+  background: url('https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=1500&q=80') center/cover no-repeat;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.home-menu { display: flex; gap: 2em; margin-top: 2em; }
+.menu-btn {
+  background: #1db954;
+  color: #fff;
+  border: none;
+  padding: 1em 2em;
+  font-size: 1.4em;
+  border-radius: 1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.menu-btn:hover, .back-btn:hover { background: #14833b; }
+
+section { display: none; padding: 30px 2vw }
+section:not(.hidden) { display: block; }
+.hidden { display: none !important; }
+
+.sticky-top {
+  background: #171e24e6;
+  position: sticky; top: 0; z-index: 999;
+  padding-bottom: 10px;
+}
+.sticky-title { margin:0 0 13px 0; position: sticky; top: 42px; background: #171e24e6; z-index:998; }
+.sticky-h2 { position: sticky; top: 116px; background: #171e24e6; margin:0; z-index: 995;}
+
+.film-columns {
+  display: flex; gap: 2vw;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+.film-columns > div {
+  flex: 1 1 0; min-width: 280px; margin:10px 1vw;
+  display: flex; flex-direction: column;
+}
+.schede-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+.filters {
+  display: flex; flex-wrap: wrap; gap: 20px; align-items: center;
+  margin-bottom: 6px; background: #202c37; padding: 10px 14px; border-radius: 13px;
+  position: sticky; top: 0;
+}
+.filters label { font-weight: 500; color: #80aeff; }
+.filters input, .filters select {
+  padding: 7px 12px; border-radius: 7px;
+  border: 0; font-size: 1em; color: #222;
+}
+
+/* scheda (tue regole originali, leggermente sistemate) */
+.scheda {
+  background: #252e37ee; border-radius: 13px; box-shadow: 0 2px 5px #0008;
+  padding: 9px; display: flex; flex-direction: column; align-items: stretch;
+  text-align: left; min-width:0; min-height: 360px; max-width: 220px;
+  transition: box-shadow 0.16s;
+  color: #e6eef6;
+}
+.scheda img{ width: 100%; max-height: 300px; object-fit: cover; border-radius: 8px; margin-bottom:9px;}
+.scheda h4 { margin: 9px 0 8px 0; font-size:1.1em; line-height:1.15;}
+.scheda .tg-btn {
+  margin-top: 10px; background: #0895ec; color: #fff; text-decoration: none;
+  border-radius: 6px; padding: 6px 14px;
+}
+.scheda .tg-btn:hover { background: #0c6aa6; }
+.scheda p { margin: 4px 0 2px 0; font-size:0.97em; color: #d7dee7; }
+
+/* keep old small utility */
+.stagione-block { margin-bottom: 20px; }
+.stagione-block ul { padding-left: 1.2em; }
+.back-btn { margin-bottom: 12px; }
+
+/* load more button */
+.carica-btn {
+  margin: 15px auto 0 auto; display: none;
+  background: #252e37cc; color: #fff; border: none;
+  padding: 9px 23px; border-radius: 9px;
+  font-size: 1.1em; cursor: pointer;
+}
+.carica-btn.show { display: block; }
+
+/* serie collapsed/expanded */
+.scheda-serie-collapsed {
+  cursor: pointer;
+}
+.scheda-serie-expanded {
+  background: #334054;
+}
+.expanded-episode-list {
+  margin: 12px 0 0 0;
+  background: #192028; border-radius: 9px; padding: 7px 10px;
+}
+
+/* --- TRAMA ESPANDIBILE (AGGIUNTA) --- */
+/* breve/completa using existing .scheda p elements with new classes */
+.trama {
+  margin: 6px 0;
+  line-height: 1.35;
+  max-width: 100%;
+  color: #d7dee7;
+}
+
+/* hide by class */
+.trama.completa.hidden,
+.trama.breve.hidden {
+  display: none;
+}
+
+/* button stile inline */
+.toggle-trama {
+  background: none;
+  color: #72e9ff;
+  border: none;
+  cursor: pointer;
+  margin: 6px 0 10px;
+  padding: 0;
+  font-size: 0.95em;
+}
+.toggle-trama:hover {
+  text-decoration: underline;
+}
+
+/* fade: adapted to dark card background */
+.trama-wrapper {
+  position: relative;
+}
+.trama-fade {
+  pointer-events: none;
+  position: absolute;
+  bottom: 28px; /* leave space for button */
+  left: 0;
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(to bottom, rgba(37,46,55,0), rgba(37,46,55,1));
+  display: block;
+}
+
+/* responsive tweak keep cards tidy */
+@media (max-width: 900px) {
+  .film-columns { flex-direction: column; }
+  .scheda { max-width: none; width: 100%; }
+}

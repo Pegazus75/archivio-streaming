@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cineteca Streaming</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <h1>Cineteca Streaming</h1>
+    <div class="controls">
+      <input id="searchBox" type="search" placeholder="Cerca titolo..." />
+      <select id="genreFilter"><option value="">Tutti i generi</option></select>
+      <select id="yearFilter"><option value="">Tutti gli anni</option></select>
+    </div>
+  </div>
+
+  <!-- NAV ORIZZONTALE (tab) -->
+  <nav class="top-tabs" aria-label="Categorie">
+    <button class="tab active" data-view="all">Tutti</button>
+    <button class="tab" data-view="films">Film (2000+)</button>
+    <button class="tab" data-view="cineteca">Cineteca (≤1999)</button>
+    <button class="tab" data-view="series">Serie TV</button>
+    <button class="tab" data-view="animation">Animazione</button>
+  </nav>
+</header>
+
+<main>
+  <section class="section" id="section-latest">
+    <h2>Ultimi Inserimenti</h2>
+    <div id="latest" class="grid"></div>
+    <button class="load-more" data-section="latest">Carica altri</button>
+  </section>
+
+  <section class="section" id="section-movies">
+    <h2>Film (2000+)</h2>
+    <div id="movies" class="grid"></div>
+    <button class="load-more" data-section="movies">Carica altri</button>
+  </section>
+
+  <section class="section" id="section-cineteca">
+    <h2>Cineteca (≤1999)</h2>
+    <div id="cineteca" class="grid"></div>
+    <button class="load-more" data-section="cineteca">Carica altri</button>
+  </section>
+
+  <section class="section" id="section-series">
+    <h2>Serie TV</h2>
+    <div id="series" class="grid"></div>
+    <button class="load-more" data-section="series">Carica altri</button>
+  </section>
+
+  <section class="section" id="section-animation">
+    <h2>Animazione</h2>
+    <div id="animation" class="grid"></div>
+    <button class="load-more" data-section="animation">Carica altri</button>
+  </section>
+</main>
+
+<!-- Modal dettagli -->
+<div id="detailModal" class="modal hidden" role="dialog" aria-hidden="true">
+  <div class="modal-content">
+    <button id="modalClose" class="modal-close" aria-label="Chiudi">✕</button>
+    <div class="modal-body">
+      <img id="modalPoster" src="" alt="Poster">
+      <div class="modal-info">
+        <h3 id="modalTitle"></h3>
+        <div id="modalMeta" class="meta"></div>
+        <p id="modalPlot"></p>
+        <div id="modalEpisodes"></div>
+        <div class="modal-actions">
+          <a id="modalTelegram" class="btn" target="_blank" rel="noopener">Apri su Telegram</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

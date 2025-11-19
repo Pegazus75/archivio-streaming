@@ -1,285 +1,409 @@
-const TELEGRAM_BOT = "pega_movies_and_series_bot";
-let filmData = {}, serieData = {};
+// CONFIG
+const BOT_USERNAME = "pega_movies_and_series_bot"; // sostituisci se vuoi
+const HERO_COUNT = 6;
+const ROW_LOAD = 18;
+const CAT_BATCH = 24;
+const CAROUSEL_STEP = 400;
+const FALLBACK_POSTER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="100%" height="100%" fill="%23111111"/></svg>';
 
-function showSection(sezId) {
-  document.getElementById("homepage").classList.add("hidden");
-  ["film-section","serie-section","latest-section"].forEach(id => {
-    document.getElementById(id).classList.add("hidden");
-  });
-  document.getElementById(sezId).classList.remove("hidden");
+// helper
+function sanitizeTitle(t){ if(!t) return ""; let s=String(t).trim(); s=s.replace(/\s*[\.\-_\s]*\.(mp4|mkv|avi|mov|wmv|flv|mpg|mpeg|mp3|txt|iso)\s*$/i,''); s=s.replace(/\s+(mp4|mkv|avi|mov|wmv|flv|mpg|mpeg|mp3|txt|iso)\s*$/i,''); s=s.replace(/\s*\(\s*\d{4}\s*\)\s*$/i,''); s=s.replace(/[\s\.\-_,;:]+$/,'').trim(); return s; }
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
+function escapeUrl(u){ try{return encodeURI(u);}catch(e){return u||FALLBACK_POSTER;} }
+function makeTelegramLink(code){ if(!code) return 'javascript:void(0)'; if(!BOT_USERNAME || BOT_USERNAME==='YOUR_BOT_USERNAME') return `https://t.me/${encodeURIComponent(code)}`; return `https://t.me/${encodeURIComponent(BOT_USERNAME)}?start=${encodeURIComponent(code)}`; }
+function uniq(arr){ return Array.from(new Set((arr||[]).filter(x=>x))); }
+
+// normalize item
+function normalizeItem(it){
+  if(it.poster && !it.locandina) it.locandina = it.poster;
+  if(it.poster_path && !it.locandina) it.locandina = it.poster_path;
+  if(it.type && !it.tipo) it.tipo = it.type;
+  if(it.title && !it.titolo) it.titolo = it.title;
+  if(it.description && !it.trama) it.trama = it.description;
+  if(it.summary && !it.trama) it.trama = it.summary;
+  if(it.year && !it.anno) it.anno = it.year;
+  if(it.vote_average !== undefined && (it.rating === undefined || it.rating === null)) it.rating = it.vote_average;
+  if(it.rating === undefined || it.rating === null) it.rating = 0;
+
+  it.id = it.id || `auto-${Math.random().toString(36).slice(2,9)}`;
+  it.tipo = it.tipo || (it.stagioni ? "serie" : "film");
+  const rawTitle = it.titolo || it.title || "";
+  it.titolo = sanitizeTitle(rawTitle) || "Sconosciuto";
+  it.locandina = it.locandina || "";
+  it.trama = it.trama || "";
+  it.generi = Array.isArray(it.generi) ? it.generi : (it.generi ? [it.generi] : []);
+  it.anno = (it.anno !== undefined && it.anno !== null) ? String(it.anno) : "";
+  it.telegram_code = it.telegram_code || it.code || "";
+  it.rating = Number(it.rating) || 0;
+
+  const joinedGenres = (it.generi||[]).join(' ').toLowerCase();
+  const isAnimation = joinedGenres.includes('anime') || joinedGenres.includes('animation') || joinedGenres.includes('animazione');
+  if(it.tipo === "film" && it.anno){
+    const y = parseInt(it.anno.slice(0,4)) || 0;
+    it.categoria = (y > 0 && y <= 1999) ? "cineteca" : "film2000";
+  } else {
+    it.categoria = "";
+  }
+  if(isAnimation) it.categoria = 'animazione';
+  return it;
 }
 
-function showHome() {
-  ["film-section","serie-section","latest-section"].forEach(id => {
-    document.getElementById(id).classList.add("hidden");
-  });
-  document.getElementById("homepage").classList.remove("hidden");
-}
-window.showHome = showHome;
+/* ---------- fetch DB ---------- */
+let DATA = [];
+let CURRENT_FILTERED = null;
+let categoryState = {}; 
 
-function generaListaAnniFilm(arr) {
-  const anniSet = new Set();
-  arr.forEach(e => {
-    let val = e.anno || e.anno_csv;
-    if (!val) return;
-    val = val.toString();
-    if (/^\d{4}$/.test(val)) anniSet.add(val);
-  });
-  return Array.from(anniSet).sort().reverse();
-}
-
-function generaListaAnniSerie(arr) {
-  const anniSet = new Set();
-  arr.forEach(e => {
-    let val = (e.anno || "").toString();
-    const match = val.match(/^(\d{4})/);
-    if (match) anniSet.add(match[1]);
-  });
-  return Array.from(anniSet).sort().reverse();
-}
-
-function creaSchedaFilm(elemento) {
-  const div = document.createElement('div');
-  div.classList.add('scheda');
-  div.innerHTML = `
-    <img src="${elemento.locandina || 'img/placeholder.jpg'}" alt="${elemento.titolo || ''}">
-    <h4 title="${elemento.titolo || ''}">${elemento.titolo || ''}</h4>
-    <p>Anno: ${elemento.anno || elemento.anno_csv || '?'}</p>
-    <p>Genere: ${(Array.isArray(elemento.generi) ? elemento.generi.join(', ') : (elemento.genere || ''))}</p>
-    <p>Rating: ${elemento.rating || 'n/d'}</p>
-    <p>${(elemento.trama || '').replace(/</g,'').replace(/>/g,'')}</p>
-    ${
-      elemento.telegram_code
-      ? `<a href="https://t.me/${TELEGRAM_BOT}?start=${elemento.telegram_code}" target="_blank" class="tg-btn">Su Telegram</a>`
-      : ''
-    }
-  `;
-  return div;
-}
-
-function creaSchedaSerieCollapsed(elemento, index) {
-  const div = document.createElement('div');
-  div.classList.add('scheda', 'scheda-serie-collapsed');
-  div.innerHTML = `
-    <img src="${elemento.locandina || 'img/placeholder.jpg'}" alt="${elemento.nome_serie || elemento.titolo || ''}">
-    <h4>${elemento.nome_serie || elemento.titolo || ''}</h4>
-    <p>Anno: ${elemento.anno || '?'}</p>
-    <p>Genere: ${(Array.isArray(elemento.generi) ? elemento.generi.join(', ') : (elemento.genere || ''))}</p>
-    <p>Rating: ${elemento.rating || 'n/d'}</p>
-    <p>${(elemento.trama || '').replace(/</g,'').replace(/>/g,'')}</p>
-    <span style="color:#72e9ff; font-size:1em;">▶ Clicca per dettagli</span>
-  `;
-  div.onclick = () => mostraDettagliSerie(index, elemento);
-  return div;
-}
-
-function mostraDettagliSerie(index, serieObj) {
-  const grid = document.getElementById("serie-container");
-  const expandedDiv = document.createElement('div');
-  expandedDiv.classList.add("scheda","scheda-serie-expanded");
-  expandedDiv.innerHTML = `
-    <img src="${serieObj.locandina || 'img/placeholder.jpg'}" style="max-width:210px">
-    <h4>${serieObj.nome_serie || serieObj.titolo || ''}</h4>
-    <p>Anno: ${serieObj.anno || '?'}</p>
-    <p>Genere: ${(Array.isArray(serieObj.generi) ? serieObj.generi.join(', ') : (serieObj.genere || ''))}</p>
-    <p>Rating: ${serieObj.rating || 'n/d'}</p>
-    <p style="white-space:normal;">${serieObj.trama || ''}</p>
-    ${generaEpisodiHTML(serieObj)}
-    <button class="menu-btn" onclick="chiudiDettagliSerie(${index})">Chiudi</button>
-  `;
-  grid.replaceChild(expandedDiv, grid.children[index]);
-  window.chiudiDettagliSerie = (idx) => {
-    mostraListaSeriePaginata(serieFiltrataUltima, "serie-container", "carica-serie");
+async function loadDatabase(){
+  try{
+    const r = await fetch('database.json', {cache:"no-store"});
+    if(!r.ok) throw new Error(`Fetch fallito ${r.status}`);
+    const db = await r.json();
+    const raw = Array.isArray(db) ? db : (typeof db === 'object' && db !== null ? Object.values(db) : []);
+    DATA = raw.map(normalizeItem);
+    DATA.sort((a,b) => ((b.data_inserimento||b.data||"")+"").localeCompare((a.data_inserimento||a.data||"")+""));
+    initUI();
+  } catch(err){
+    console.error('Errore caricamento database.json', err);
+    DATA = [];
+    initUI();
   }
 }
 
-function generaEpisodiHTML(serieObj) {
-  if(!serieObj.stagioni) return "";
-  let html = `<div class="expanded-episode-list">`;
-  Object.entries(serieObj.stagioni).forEach(([nStagione, stagione]) => {
-    html += `<h5>Stagione ${nStagione}</h5><ul>`;
-    for(const ep of (stagione.episodi || [])) {
-      html += `<li>${ep.titolo_episodio||''} ${
-        ep.telegram_code
-        ? `<a href="https://t.me/${TELEGRAM_BOT}?start=${ep.telegram_code}" target="_blank" class="tg-btn">Telegram</a>` 
-        : ''
-      }</li>`;
-    }
-    html += `</ul>`;
+/* ---------- UI / Routing ---------- */
+const ROW_CONFIG = [
+  {id:'latest', title:'Ultimi inserimenti', items: (f)=> (f||DATA)},
+  {id:'pop', title:'Consigliati', items: (f)=> (f||DATA).filter(x=>x.rating>6)},
+  {id:'films', title:'Film (2000+)', items: (f)=> (f||DATA).filter(x=> x.tipo==='film' && x.categoria!=='cineteca')},
+  {id:'series', title:'Serie TV', items: (f)=> (f||DATA).filter(x=> x.tipo==='serie')},
+  {id:'cineteca', title:'Cineteca (≤1999)', items: (f)=> (f||DATA).filter(x=> x.tipo==='film' && x.categoria==='cineteca')},
+  {id:'animation', title:'Animazione', items: (f)=> (f||DATA).filter(x => x.categoria==='animazione' || (x.generi||[]).join(' ').toLowerCase().includes('anime'))}
+];
+
+function initUI(){
+  buildHero();
+  buildRows();
+  buildFilters();
+  attachSearch();
+  attachTabClicks();
+  setupHeroAuto();
+  handleHashChange();
+  window.addEventListener('hashchange', handleHashChange);
+}
+
+/* HERO */
+function buildHero(){
+  const heroEl = document.getElementById('hero-slider');
+  if(!heroEl) return;
+  heroEl.innerHTML = '';
+  const candidates = DATA.filter(d=>d.locandina).slice(0, HERO_COUNT);
+  if(candidates.length === 0){
+    heroEl.innerHTML = `<div class="hero-card" style="display:flex;align-items:center;justify-content:center;background:#070707;color:#888"><div style="max-width:900px;padding:20px;text-align:center"><h2>Nessun contenuto disponibile</h2></div></div>`;
+    return;
+  }
+  candidates.forEach(it => {
+    const card = document.createElement('div'); card.className = 'hero-card';
+    card.style.backgroundImage = `linear-gradient(180deg, rgba(6,6,6,0.0) 0%, rgba(6,6,6,0.85) 60%), url('${escapeUrl(it.locandina)}')`;
+    card.style.backgroundPosition = 'center 45%'; // leggermente più basso
+    const info = document.createElement('div'); info.className = 'hero-info';
+    info.innerHTML = `<h2>${escapeHtml(it.titolo)}</h2><p>${escapeHtml((it.trama||'').slice(0,280))}</p>`;
+    const openBtn = document.createElement('a'); openBtn.className='btn'; openBtn.textContent='Apri';
+    if(it.telegram_code) openBtn.href = makeTelegramLink(it.telegram_code); else openBtn.href='javascript:void(0)';
+    openBtn.target='_blank'; openBtn.rel='noopener';
+    info.appendChild(openBtn);
+    card.appendChild(info);
+    card.addEventListener('click', ()=> openModal(it));
+    heroEl.appendChild(card);
   });
-  html += "</div>";
-  return html;
 }
+let heroIndex=0, heroTimer=null;
+function shiftHero(dir){ const slider=document.getElementById('hero-slider'); if(!slider||slider.children.length===0) return; const count=slider.children.length; heroIndex=(heroIndex+dir+count)%count; slider.style.transform=`translateX(-${heroIndex*100}%)`; }
+function setupHeroAuto(){ if(heroTimer) clearInterval(heroTimer); heroTimer=setInterval(()=> shiftHero(1),6000); document.getElementById('hero')?.addEventListener('mouseenter', ()=> clearInterval(heroTimer)); document.getElementById('hero')?.addEventListener('mouseleave', ()=> setupHeroAuto()); }
 
-function generaListaGeneri(arr) {
-  const generiSet = new Set();
-  arr.forEach(e => {
-    if (e.generi) e.generi.forEach(g => generiSet.add(g));
-    else if (e.genere) generiSet.add(e.genere);
-  });
-  return Array.from(generiSet).sort();
-}
-
-function filtraCineteca(arr, g, a, t) {
-  return arr.filter(f =>
-    f.anno_csv && +f.anno_csv < 2000
-    && (!g || (f.generi || []).includes(g))
-    && (!a || (f.anno_csv === a || f.anno === a))
-    && (!t || (f.titolo || '').toLowerCase().includes(t))
-    && !((f.generi || []).includes('Animazione')));
-}
-
-function filtraAnimazione(arr, g, a, t) {
-  return arr.filter(f =>
-    (f.generi || []).includes('Animazione')
-    && (!g || (f.generi || []).includes(g))
-    && (!a || (f.anno_csv === a || f.anno === a))
-    && (!t || (f.titolo || '').toLowerCase().includes(t)));
-}
-
-function filtraFilm2000(arr, g, a, t) {
-  return arr.filter(f =>
-    f.anno_csv && +f.anno_csv >= 2000
-    && (!g || (f.generi || []).includes(g))
-    && (!a || (f.anno_csv === a || f.anno === a))
-    && (!t || (f.titolo || '').toLowerCase().includes(t))
-    && !((f.generi || []).includes('Animazione')));
-}
-
-function mostraListaFilmPaginata(lista, containerId, btnId, step=12) {
-  const container = document.getElementById(containerId);
-  const btn = document.getElementById(btnId);
+/* Home rows (orizzontali) */
+function buildRows(){
+  const container = document.getElementById('rowsContainer');
+  if(!container) return;
   container.innerHTML = '';
-  let offset = 0;
-  btn.textContent = 'Carica altri';
-  btn.classList.remove('show');
-  function renderChunk() {
-    const chunk = lista.slice(offset, offset+step);
-    chunk.forEach(elem => container.appendChild(creaSchedaFilm(elem)));
-    offset += step;
-    if (offset < lista.length) btn.classList.add('show');
-    else btn.classList.remove('show');
+  ROW_CONFIG.forEach(cfg => {
+    const row = document.createElement('div'); row.className='row'; row.id = `row-${cfg.id}`;
+    row.innerHTML = `<h3>${cfg.title}</h3>`;
+    const carousel = document.createElement('div'); carousel.className='carousel';
+    const leftNavWrap = document.createElement('div'); leftNavWrap.className='carousel-nav carousel-left';
+    const leftBtn = document.createElement('button'); leftBtn.textContent = '‹'; leftNavWrap.appendChild(leftBtn);
+    const rightNavWrap = document.createElement('div'); rightNavWrap.className='carousel-nav carousel-right';
+    const rightBtn = document.createElement('button'); rightBtn.textContent = '›'; rightNavWrap.appendChild(rightBtn);
+    const track = document.createElement('div'); track.className='carousel-track';
+    const items = cfg.items();
+    if(items.length === 0) track.innerHTML = `<div style="color:#bbb;padding:8px">Nessun elemento</div>`;
+    else items.slice(0, ROW_LOAD).forEach(it => track.appendChild(makeCard(it)));
+    leftBtn.addEventListener('click', ()=> track.scrollBy({left:-CAROUSEL_STEP, behavior:'smooth'}));
+    rightBtn.addEventListener('click', ()=> track.scrollBy({left:CAROUSEL_STEP, behavior:'smooth'}));
+    carousel.appendChild(leftNavWrap); carousel.appendChild(track); carousel.appendChild(rightNavWrap);
+    row.appendChild(carousel);
+    container.appendChild(row);
+  });
+  document.getElementById('hero-prev')?.addEventListener('click', ()=> shiftHero(-1));
+  document.getElementById('hero-next')?.addEventListener('click', ()=> shiftHero(1));
+}
+
+/* ---------- Category page (griglia compatta) ---------- */
+function renderCategoryPage(catId){
+  const app = document.getElementById('main-content');
+  app.innerHTML = `
+    <section class="section category-page" id="category-${catId}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h2>${ROW_CONFIG.find(r=>r.id===catId)?.title || 'Sezione'}</h2>
+        <div class="controls-inline">
+          <select id="catTypeFilter" style="display:none"><option value="all">Tutti</option><option value="film">Film</option><option value="serie">Serie</option></select>
+          <select id="catGenreFilter"><option value="">Tutti i generi</option></select>
+          <select id="catYearFilter"><option value="">Tutti gli anni</option></select>
+          <input id="catSearchBox" placeholder="Cerca..." style="padding:8px;border-radius:6px;background:#0f0f10;color:#eee;border:1px solid #222">
+        </div>
+      </div>
+      <div id="catGrid" class="grid category-grid"></div>
+      <div style="text-align:center;margin-top:14px;"><button id="catLoadMore" class="load-more">Carica altri</button></div>
+    </section>
+  `;
+  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort();
+  const genreSel = document.getElementById('catGenreFilter');
+  allGenres.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; genreSel.appendChild(o); });
+  const years = uniq(DATA.map(d=>d.anno)).filter(x=>x).sort((a,b)=> b - a);
+  const yearSel = document.getElementById('catYearFilter');
+  years.forEach(y=>{ const o=document.createElement('option'); o.value=y; o.textContent=y; yearSel.appendChild(o); });
+
+  const typeFilter = document.getElementById('catTypeFilter');
+  if(catId === 'animation' || catId === 'latest'){ typeFilter.style.display = 'inline-block'; } else { typeFilter.style.display = 'none'; }
+
+  const cfg = ROW_CONFIG.find(r=>r.id===catId);
+  const itemsAll = cfg ? cfg.items() : [];
+  CURRENT_FILTERED = itemsAll;
+  categoryState[catId] = 0;
+
+  document.getElementById('catTypeFilter').addEventListener('change', ()=> applyCatFilters(catId));
+  genreSel.addEventListener('change', ()=> applyCatFilters(catId));
+  yearSel.addEventListener('change', ()=> applyCatFilters(catId));
+  document.getElementById('catSearchBox').addEventListener('input', ()=> { if(window._deb) clearTimeout(window._deb); window._deb = setTimeout(()=> applyCatFilters(catId), 250); });
+  document.getElementById('catLoadMore').addEventListener('click', ()=> { categoryState[catId] = (categoryState[catId] || 0) + CAT_BATCH; renderCatBatch(catId); });
+
+  applyCatFilters(catId);
+}
+
+function applyCatFilters(catId){
+  const type = document.getElementById('catTypeFilter')?.value || 'all';
+  const genre = document.getElementById('catGenreFilter')?.value || '';
+  const year = document.getElementById('catYearFilter')?.value || '';
+  const q = (document.getElementById('catSearchBox')?.value || '').trim().toLowerCase();
+
+  const cfg = ROW_CONFIG.find(r=>r.id===catId);
+  const baseItems = cfg ? cfg.items() : [];
+  let filtered = baseItems.filter(it => {
+    if(type === 'film' && it.tipo !== 'film') return false;
+    if(type === 'serie' && it.tipo !== 'serie') return false;
+    if(genre){
+      const lg = genre.toLowerCase();
+      if(['anime','animation','animazione'].includes(lg)){
+        const joined = (it.generi||[]).join(' ').toLowerCase();
+        if(!(joined.includes('anime') || joined.includes('anim') || it.categoria === 'animazione')) return false;
+      } else {
+        if(!((it.generi||[]).map(g=>g.toLowerCase()).includes(lg))) return false;
+      }
+    }
+    if(year && String(it.anno) !== String(year)) return false;
+    if(q && !String(it.titolo||'').toLowerCase().includes(q) && !String(it.trama||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  CURRENT_FILTERED = filtered;
+  categoryState[catId] = 0;
+  const grid = document.getElementById('catGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  renderCatBatch(catId);
+}
+
+function renderCatBatch(catId){
+  const grid = document.getElementById('catGrid');
+  if(!grid) return;
+  const offset = categoryState[catId] || 0;
+  const batch = (CURRENT_FILTERED || []).slice(offset, offset + CAT_BATCH);
+  if(batch.length === 0 && offset === 0){
+    grid.innerHTML = '<div style="color:#bbb;padding:16px">Nessun elemento</div>';
+    return;
   }
-  btn.onclick = renderChunk;
-  renderChunk();
+  batch.forEach(it => {
+    const card = document.createElement('div'); card.className='card cat-card';
+    card.style.cursor='pointer';
+    const img = document.createElement('img'); img.loading='lazy'; img.src = it.locandina || FALLBACK_POSTER; img.alt = it.titolo || '';
+    img.addEventListener('error', ()=> img.src = FALLBACK_POSTER);
+    const info = document.createElement('div'); info.className='info';
+    const strong = document.createElement('strong'); strong.textContent = it.titolo;
+    const meta = document.createElement('div'); meta.className='meta'; meta.textContent = `${it.anno ? it.anno + ' · ' : ''}${(it.generi||[]).slice(0,3).join(', ')}${it.rating ? ' · ' + Number(it.rating).toFixed(1) : ''}`;
+    const plot = document.createElement('div'); plot.className='plot'; plot.textContent = it.trama || '';
+    info.appendChild(strong); info.appendChild(meta); info.appendChild(plot);
+    card.appendChild(img); card.appendChild(info);
+    card.addEventListener('click', ()=> openModal(it));
+    grid.appendChild(card);
+  });
+
+  const loadBtn = document.getElementById('catLoadMore');
+  const total = (CURRENT_FILTERED || []).length;
+  if(offset + CAT_BATCH >= total) loadBtn.style.display = 'none'; else loadBtn.style.display = 'inline-block';
 }
 
-let serieFiltrataUltima = [];
-function mostraListaSeriePaginata(lista, containerId, btnId, step=12) {
-  serieFiltrataUltima = lista;
-  const container = document.getElementById(containerId);
-  const btn = document.getElementById(btnId);
-  container.innerHTML = '';
-  let offset = 0;
-  btn.textContent = 'Carica altri';
-  btn.classList.remove('show');
-  function renderChunk() {
-    const chunk = lista.slice(offset, offset+step);
-    chunk.forEach((elem, i) =>
-      container.appendChild(creaSchedaSerieCollapsed(elem, offset+i))
-    );
-    offset += step;
-    if (offset < lista.length) btn.classList.add('show');
-    else btn.classList.remove('show');
+/* make card for home */
+function makeCard(item){
+  const card = document.createElement('div'); card.className='card';
+  const imgWrap = document.createElement('div'); imgWrap.style.position='relative';
+  const img = document.createElement('img'); img.loading='lazy'; img.alt = item.titolo || ''; img.src = item.locandina || FALLBACK_POSTER;
+  img.addEventListener('error', ()=> img.src = FALLBACK_POSTER);
+  imgWrap.appendChild(img);
+  if(item.rating && Number(item.rating)>0){
+    const b = document.createElement('div'); b.className='rating-badge'; b.textContent = Number(item.rating).toFixed(1); imgWrap.appendChild(b);
   }
-  btn.onclick = renderChunk;
-  renderChunk();
+  const info = document.createElement('div'); info.className='info';
+  const st = document.createElement('strong'); st.textContent = item.titolo; info.appendChild(st);
+  const meta = document.createElement('div'); meta.className='meta'; meta.textContent = `${item.anno ? item.anno + ' · ' : ''}${(item.generi||[]).slice(0,2).join(', ')}${item.rating ? ' · ' + Number(item.rating).toFixed(1) : ''}`; info.appendChild(meta);
+  const plot = document.createElement('div'); plot.className='plot'; plot.textContent = item.trama || ''; info.appendChild(plot);
+  card.appendChild(imgWrap); card.appendChild(info);
+  card.addEventListener('click', ()=> openModal(item));
+  return card;
 }
 
-function mostraFilm() {
-  const tutte = Object.values(filmData);
-  const filtroTesto = document.getElementById("search-input-film").value.trim().toLowerCase();
-  const genere = document.getElementById("genere-film").value;
-  const anno = document.getElementById("anno-film").value;
-  mostraListaFilmPaginata(filtraCineteca(tutte, genere, anno, filtroTesto), "cineteca-container", "carica-cineteca");
-  mostraListaFilmPaginata(filtraFilm2000(tutte, genere, anno, filtroTesto), "film2000-container", "carica-film2000");
-  mostraListaFilmPaginata(filtraAnimazione(tutte, genere, anno, filtroTesto), "animazioni-container", "carica-animazione");
+/* modal */
+const modal = document.getElementById('detailModal');
+document.getElementById('modalClose')?.addEventListener('click', ()=> { closeModal(); });
+modal?.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+
+function openModal(item){
+  try{
+    document.getElementById('modalPoster').src = item.locandina || FALLBACK_POSTER;
+    document.getElementById('modalTitle').textContent = item.titolo;
+    const meta = `${item.anno ? item.anno + " · " : ""}${(item.generi || []).join(", ")}${item.rating ? " · " + Number(item.rating).toFixed(1) : ""}`;
+    document.getElementById('modalMeta').textContent = meta;
+    document.getElementById('modalPlot').textContent = item.trama || "";
+
+    const epDiv = document.getElementById('modalEpisodes'); if(epDiv) epDiv.innerHTML = '';
+    const existingTabs = document.getElementById('seasonTabs'); if(existingTabs) existingTabs.remove();
+    const seasonTabs = document.createElement('div'); seasonTabs.id='seasonTabs'; seasonTabs.style.display='flex'; seasonTabs.style.gap='8px'; seasonTabs.style.flexWrap='wrap'; seasonTabs.style.margin='8px 0';
+    document.getElementById('modalPlot')?.after(seasonTabs);
+
+    if(item.tipo === 'serie' && item.stagioni){
+      const seasonKeys = Object.keys(item.stagioni).sort();
+      seasonKeys.forEach(sk => {
+        const tab = document.createElement('button'); tab.className='season-tab'; tab.textContent = `Stagione ${sk}`; tab.addEventListener('click', ()=>{
+          const panel = document.getElementById(`season-panel-${sk}`); if(panel){ const eps = panel.querySelector('.season-episodes'); if(eps) eps.style.display='block'; panel.scrollIntoView({behavior:'smooth', block:'center'}); }
+        });
+        seasonTabs.appendChild(tab);
+
+        const panel = document.createElement('div'); panel.className='season-panel'; panel.id=`season-panel-${sk}`; panel.style.marginTop='12px';
+        const header = document.createElement('div'); header.className='season-header'; header.style.padding='8px'; header.style.background='#0b0b0b'; header.style.borderRadius='6px'; header.style.display='flex'; header.style.justifyContent='space-between'; header.style.cursor='pointer';
+        header.innerHTML = `<strong>Stagione ${sk}</strong><span style="color:#bbb">${(item.stagioni[sk].episodi||[]).length} episodi</span>`;
+        const epsList = document.createElement('div'); epsList.className='season-episodes'; epsList.style.display='none'; epsList.style.marginTop='8px';
+        (item.stagioni[sk].episodi||[]).forEach(ep => {
+          const eDiv = document.createElement('div'); eDiv.className='episode';
+          const left = document.createElement('div'); left.className='ep-left'; left.innerHTML = `<strong>${escapeHtml(ep.titolo_episodio || ep.titolo || '')}</strong><div style="color:#bbb;font-size:13px">Episodio ${escapeHtml(ep.episodio || '')}</div>`;
+          const right = document.createElement('div'); right.className='ep-right'; const a = document.createElement('a'); const code = ep.telegram_code || ep.telegram || '';
+          if(code){ a.href = makeTelegramLink(code); a.textContent='Apri'; a.target='_blank'; a.rel='noopener'; } else { a.href='javascript:void(0)'; a.textContent='Nessun codice'; a.style.opacity='0.6'; }
+          right.appendChild(a); eDiv.appendChild(left); eDiv.appendChild(right); epsList.appendChild(eDiv);
+        });
+        header.addEventListener('click', ()=> { epsList.style.display = epsList.style.display === 'block' ? 'none' : 'block'; } );
+        panel.appendChild(header); panel.appendChild(epsList); epDiv.appendChild(panel);
+      });
+      document.getElementById('modalTelegram').style.display='none';
+    } else {
+      const tbtn = document.getElementById('modalTelegram'); const code = item.telegram_code || '';
+      if(code){ tbtn.href = makeTelegramLink(code); tbtn.textContent='Apri su Telegram'; tbtn.style.display='inline-block'; } else { tbtn.style.display = 'none'; }
+    }
+
+    modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false'); document.querySelector('.modal-content')?.scrollTo(0,0);
+  }catch(e){ console.error('openModal error', e, item); }
+}
+function closeModal(){ modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); }
+
+/* filters home */
+function buildFilters(){
+  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort((a,b)=>a.localeCompare(b));
+  const genreSelect = document.getElementById('genreFilter');
+  if(genreSelect){
+    genreSelect.innerHTML = `<option value="">Tutti i generi</option>`;
+    ['Anime','Animation','Animazione'].forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; genreSelect.appendChild(o); });
+    allGenres.forEach(g => { const o=document.createElement('option'); o.value=g; o.textContent=g; genreSelect.appendChild(o); });
+    genreSelect.addEventListener('change', applyAllFilters);
+  }
+  const yearSelect = document.getElementById('yearFilter');
+  if(yearSelect){
+    const years = uniq(DATA.map(d=>d.anno)).filter(x=>x).sort((a,b)=>b-a);
+    yearSelect.innerHTML = `<option value="">Tutti gli anni</option>`;
+    years.forEach(y => { const o=document.createElement('option'); o.value=y; o.textContent=y; yearSelect.appendChild(o); });
+    yearSelect.addEventListener('change', applyAllFilters);
+  }
+}
+function attachSearch(){ const sb=document.getElementById('searchBox'); if(sb) sb.addEventListener('input', ()=> { if(window._deb) clearTimeout(window._deb); window._deb = setTimeout(applyAllFilters, 250); }); }
+
+function applyAllFilters(){
+  const genre = document.getElementById('genreFilter')?.value || '';
+  const year = document.getElementById('yearFilter')?.value || '';
+  const q = (document.getElementById('searchBox')?.value || '').trim().toLowerCase();
+  ROW_CONFIG.forEach(cfg => {
+    const row = document.getElementById(`row-${cfg.id}`);
+    if(!row) return;
+    const track = row.querySelector('.carousel-track');
+    if(!track) return;
+    track.innerHTML = '';
+    const items = cfg.items();
+    const filtered = items.filter(it => {
+      if(genre){
+        const lg = genre.toLowerCase();
+        if(['anime','animation','animazione'].includes(lg)){
+          const joined = (it.generi||[]).join(' ').toLowerCase();
+          if(!(joined.includes('anime') || joined.includes('anim') || it.categoria === 'animazione')) return false;
+        } else {
+          if(!((it.generi||[]).map(g=>g.toLowerCase()).includes(lg))) return false;
+        }
+      }
+      if(year && String(it.anno) !== String(year)) return false;
+      if(q && !String(it.titolo||'').toLowerCase().includes(q) && !String(it.trama||'').toLowerCase().includes(q)) return false;
+      return true;
+    });
+    filtered.slice(0, ROW_LOAD).forEach(it => track.appendChild(makeCard(it)));
+  });
 }
 
-function mostraSerie() {
-  const tutte = Object.values(serieData);
-  const filtroTesto = document.getElementById("search-input-serie").value.trim().toLowerCase();
-  const genere = document.getElementById("genere-serie").value;
-  const anno = document.getElementById("anno-serie").value;
-  const filtrate = tutte.filter(e =>
-    (!genere || (e.generi || []).includes(genere)) &&
-    (!anno || (e.anno && e.anno.toString().startsWith(anno))) &&
-    (!filtroTesto || (e.nome_serie || '').toLowerCase().includes(filtroTesto))
-  );
-  mostraListaSeriePaginata(filtrate, "serie-container", "carica-serie");
+/* tabs -> hash (corretta) */
+function attachTabClicks(){
+  document.querySelectorAll('.top-tabs .tab').forEach(btn=>{
+    btn.addEventListener('click', ()=> { 
+      const view = btn.dataset.view;
+      if (view === 'all' || view === 'home') {
+        location.hash = '#/';          // HOME
+        return;
+      }
+      location.hash = `#/category/${view}`;
+    });
+  });
 }
 
-function mostraUltimiInserimenti() {
-  const tipo = document.getElementById("filtro-ultimi").value;
-  let filmUltimi = Object.values(filmData).filter(f=>f.data_inserimento).sort((a,b)=>(b.data_inserimento.localeCompare(a.data_inserimento)));
-  let serieUltime = Object.values(serieData).filter(s=>s.data_inserimento).sort((a,b)=>(b.data_inserimento.localeCompare(a.data_inserimento)));
-  let elenco = [];
-  if(tipo === "film") elenco = filmUltimi.slice(0,20).map(creaSchedaFilm);
-  else if(tipo === "serie") elenco = serieUltime.slice(0,20).map(creaSchedaSerieCollapsed);
-  else elenco = filmUltimi.slice(0,10).map(creaSchedaFilm).concat(serieUltime.slice(0,10).map(creaSchedaSerieCollapsed));
-  const cont = document.getElementById("latest-container");
-  cont.innerHTML = '';
-  elenco.forEach(elem => cont.appendChild(elem));
+/* routing */
+function handleHashChange(){
+  const hash = location.hash || '#/';
+  if(hash === '#/' || hash === '' || hash === '#/home' || hash === '#/all'){
+    document.getElementById('main-content').innerHTML = `
+      <section id="hero" class="hero"><div id="hero-slider" class="hero-slider"></div><button id="hero-prev" class="hero-nav">‹</button><button id="hero-next" class="hero-nav">›</button></section>
+      <section class="rows" id="rowsContainer"></section>
+    `;
+    buildHero(); buildRows(); setupHeroAuto();
+    document.querySelectorAll('.top-tabs .tab').forEach(t=> t.classList.toggle('active', (t.dataset.view==='all')));
+    return;
+  }
+  const match = hash.match(/^#\/category\/([a-zA-Z0-9_-]+)(?:\?(.+))?/);
+  if(match){
+    const catId = match[1];
+    document.querySelectorAll('.top-tabs .tab').forEach(t=> t.classList.toggle('active', (t.dataset.view===catId)));
+    renderCategoryPage(catId);
+    return;
+  }
+  location.hash = '#/';
 }
 
-async function main() {
-  let filmJson = await fetch('film.json');
-  let serieJson = await fetch('serie.json');
-  filmData = await filmJson.json();
-  serieData = await serieJson.json();
-
-  document.getElementById("go-films").onclick = function(){ showSection("film-section"); mostraFilm(); };
-  document.getElementById("go-series").onclick = function(){ showSection("serie-section"); mostraSerie(); };
-  document.getElementById("go-latest").onclick = function(){ showSection("latest-section"); mostraUltimiInserimenti(); };
-
-  // FILM filtri
-  const generiF = generaListaGeneri(Object.values(filmData));
-  const anniF = generaListaAnniFilm(Object.values(filmData));
-  generiF.forEach(g=>{
-    const o=document.createElement("option");
-    o.value=g;
-    o.text=g;
-    document.getElementById("genere-film").appendChild(o)
-  });
-  anniF.forEach(a=>{
-    const o=document.createElement("option");
-    o.value=a;
-    o.text=a;
-    document.getElementById("anno-film").appendChild(o)
-  });
-  document.getElementById("search-btn-film").onclick = mostraFilm;
-  document.getElementById("search-input-film").addEventListener("keyup", e=>{
-    if(e.key==="Enter")
-      mostraFilm();
-  });
-  document.getElementById("genere-film").onchange = mostraFilm;
-  document.getElementById("anno-film").onchange = mostraFilm;
-
-  // SERIE filtri
-  const generiS = generaListaGeneri(Object.values(serieData));
-  const anniS = generaListaAnniSerie(Object.values(serieData));
-  generiS.forEach(g=>{
-    const o=document.createElement("option");
-    o.value=g;
-    o.text=g;
-    document.getElementById("genere-serie").appendChild(o)
-  });
-  anniS.forEach(a=>{
-    const o=document.createElement("option");
-    o.value=a;
-    o.text=a;
-    document.getElementById("anno-serie").appendChild(o)
-  });
-  document.getElementById("search-btn-serie").onclick = mostraSerie;
-  document.getElementById("search-input-serie").addEventListener("keyup", e=>{
-    if(e.key==="Enter")
-      mostraSerie();
-  });
-  document.getElementById("genere-serie").onchange = mostraSerie;
-  document.getElementById("anno-serie").onchange = mostraSerie;
-
-  // ULTIMI INSERIMENTI
-  document.getElementById("filtro-ultimi").onchange = mostraUltimiInserimenti;
-}
-
-main();
+/* start */
+loadDatabase();
