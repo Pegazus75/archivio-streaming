@@ -53,9 +53,11 @@ let DATA = [];
 let CURRENT_FILTERED = null;
 let categoryState = {}; 
 
+const DB_URL = "https://drive.google.com/uc?export=download&id=1YKHyRtoWnG6P5e2tg-Nnyb4FSz9IHMOY";
+
 async function loadDatabase(){
   try{
-    const r = await fetch('database.json', {cache:"no-store"});
+    const r = await fetch(DB_URL, { cache: "no-store" });
     if(!r.ok) throw new Error(`Fetch fallito ${r.status}`);
     const db = await r.json();
     const raw = Array.isArray(db) ? db : (typeof db === 'object' && db !== null ? Object.values(db) : []);
@@ -63,11 +65,12 @@ async function loadDatabase(){
     DATA.sort((a,b) => ((b.data_inserimento||b.data||"")+"").localeCompare((a.data_inserimento||a.data||"")+""));
     initUI();
   } catch(err){
-    console.error('Errore caricamento database.json', err);
+    console.error('Errore caricamento database remoto:', err);
     DATA = [];
     initUI();
   }
 }
+
 
 /* ---------- UI / Routing ---------- */
 const ROW_CONFIG = [
