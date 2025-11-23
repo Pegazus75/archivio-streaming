@@ -66,6 +66,18 @@ body{margin:0;background:#050506;color:#eaeaea;font-family:Inter,Arial,Helvetica
 .episode{margin:8px 0;padding:8px;background:#111;border-radius:6px;display:flex;justify-content:space-between;align-items:center}
 .ep-right a{padding:6px 10px;background:#ff4444;color:white;border-radius:6px;text-decoration:none;font-size:13px}
 
+/* Category grid small cards */
+.category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; align-items: start; }
+.cat-card { background: #111; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; transition: transform .14s; box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+.cat-card img { width: 100%; height: 260px; object-fit: cover; display: block; background: #111; }
+
+/* search suggestions */
+#searchSuggestions { box-shadow: 0 8px 30px rgba(0,0,0,0.6); border-radius:6px; overflow:auto; }
+
+/* Buttons */
+#catLoadMore, .load-more, .btn { background:#ff4444; border:none; color:#fff; padding:8px 12px; border-radius:6px; cursor:pointer; text-decoration:none; display:inline-block; }
+#catLoadMore:hover, .load-more:hover, .btn:hover { background:#e33; }
+
 /* Responsive */
 @media (max-width:800px){
   .header-inner{flex-direction:column;align-items:flex-start}
@@ -73,84 +85,45 @@ body{margin:0;background:#050506;color:#eaeaea;font-family:Inter,Arial,Helvetica
   .card{min-width:140px;flex:0 0 140px}
   .modal-body{flex-direction:column;align-items:center}
   .modal-body img{width:70%;height:auto}
-}
-
-/* --- Single definition for hero-card (cleaned) --- */
-.hero-card { 
-  background-position: center 45% !important;
-  background-size: cover !important;
-  height: 380px;
-}
-
-/* Categoria: griglia compatta (schede affiancate) */
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-  align-items: start;
-}
-
-/* Scheda categoria (card piccola) */
-.cat-card {
-  background: #111;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: transform .14s;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.6);
-}
-.cat-card:hover { transform: translateY(-6px); }
-
-.cat-card img {
-  width: 100%;
-  height: 260px;
-  object-fit: cover;
-  display: block;
-  background: #111;
-}
-
-.cat-card .info {
-  padding: 10px;
-}
-.cat-card .info strong {
-  font-size: 14px;
-  display:block;
-  margin-bottom:6px;
-}
-.cat-card .meta {
-  color: #bbb;
-  font-size: 12px;
-  margin-bottom:8px;
-}
-.cat-card .plot {
-  color:#d1d1d1;
-  font-size: 13px;
-  max-height: 44px;
-  overflow: hidden;
-}
-
-/* Allinea il contenuto dei controls nella category-page a destra */
-.category-page .controls-inline {
-  display:flex;
-  gap:8px;
-  align-items:center;
-}
-
-/* Bottone carica altri stilizzato */
-#catLoadMore, .load-more {
-  background:#ff4444;
-  border:none;
-  color:#fff;
-  padding:10px 16px;
-  border-radius:8px;
-  cursor:pointer;
-}
-#catLoadMore:hover, .load-more:hover { background:#e33; }
-
-/* Mobile adjustments */
-@media (max-width:800px){
-  .hero-card { height: 260px; background-position:center 15% !important; }
-  .category-grid{ grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px; }
   .cat-card img { height: 180px; }
+}
+/* Stili per pagina elenco alfabetico */
+.alpha-content { max-width:1300px; margin:0 auto; padding:0 12px; }
+.alpha-list-grid { display:flex; flex-direction:column; gap:8px; }
+.alpha-item strong { font-size:15px; color:#fff; }
+.alpha-btn { background:transparent; border:1px solid #222; color:#ddd; padding:6px 8px; border-radius:6px; cursor:pointer; }
+.alpha-btn:hover { opacity:0.9; }
+@media (max-width:800px){
+  .alpha-item { flex-direction:column; align-items:flex-start; gap:8px; }
+  .alpha-item img { width:64px;height:92px; }
+}
+/* ---------- ALFABETO STICKY ---------- */
+#alphaIndex {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 72px;               /* valore di fallback, verrà aggiornato dinamicamente da JS */
+  z-index: 1200;
+  background: linear-gradient(180deg, rgba(6,6,6,0.95), rgba(6,6,6,0.92));
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  backdrop-filter: blur(4px);
+}
+
+/* Assicura che i bottoni restino leggibili quando sticky */
+.alpha-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.04);
+  color: #ddd;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.alpha-btn[disabled], .alpha-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
 }

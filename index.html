@@ -18,10 +18,13 @@
         <button class="tab" data-view="series">Serie</button>
         <button class="tab" data-view="cineteca">Cineteca</button>
         <button class="tab" data-view="animation">Animazione</button>
+		<button class="tab" data-view="list">Elenco</button>
       </nav>
 
       <div class="controls">
-        <input id="searchBox" placeholder="Cerca titolo..." />
+        <div style="position:relative;">
+          <input id="searchBox" placeholder="Cerca titolo..." autocomplete="off"/>
+        </div>
         <select id="genreFilter"><option value="">Tutti i generi</option></select>
         <select id="yearFilter"><option value="">Tutti gli anni</option></select>
       </div>
@@ -29,8 +32,7 @@
   </header>
 
   <main id="main-content">
-    <!-- Il JS ricostruisce qui la Home (hero + rows) oppure la pagina categoria -->
-    <!-- Inizialmente lasciamo vuoto, lo script creerà la HOME al load -->
+    <!-- Viene costruito dinamicamente da script.js -->
   </main>
 
   <!-- Modal dettaglio -->
@@ -43,7 +45,7 @@
           <h3 id="modalTitle">Titolo</h3>
           <div id="modalMeta" class="meta"></div>
           <p id="modalPlot"></p>
-          <div id="seasonTabs" style="margin-top:8px;"></div>
+          <!-- season tabs vengono creati dinamicamente -->
           <div id="modalEpisodes" style="margin-top:12px;"></div>
           <a id="modalTelegram" href="#" target="_blank" rel="noopener" style="display:none;margin-top:12px;padding:8px 12px;background:#ff4444;color:#fff;border-radius:8px;text-decoration:none">Apri su Telegram</a>
         </div>
