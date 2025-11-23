@@ -707,31 +707,6 @@ function renderListPage(){
     </section>
   `;
 
-  // --- posizione sticky dinamica per alphaIndex in base all'altezza dell'header ---
-  const alphaIndexEl = document.getElementById('alphaIndex');
-  function updateAlphaTop(){
-    const header = document.querySelector('.site-header');
-    const headerHeight = header ? header.getBoundingClientRect().height : 72;
-    const gap = 8;
-    if(alphaIndexEl){
-      alphaIndexEl.style.position = 'sticky';
-      alphaIndexEl.style.top = (headerHeight + gap) + 'px';
-      alphaIndexEl.style.zIndex = 1200;
-      alphaIndexEl.style.left = '12px';
-      alphaIndexEl.style.right = '12px';
-      // keep background/visuals reasonable when sticky
-      alphaIndexEl.style.background = 'linear-gradient(180deg, rgba(6,6,6,0.95), rgba(6,6,6,0.92))';
-      alphaIndexEl.style.padding = '8px';
-      alphaIndexEl.style.borderRadius = '8px';
-      alphaIndexEl.style.boxShadow = '0 6px 24px rgba(0,0,0,0.6)';
-      alphaIndexEl.style.backdropFilter = 'blur(4px)';
-    }
-  }
-  updateAlphaTop();
-  window.addEventListener('resize', updateAlphaTop);
-  // ricalcola anche al scroll se siamo nella pagina lista
-  window.addEventListener('scroll', () => { if(document.getElementById('alpha-list')) updateAlphaTop(); });
-
   // genera map lettera -> items
   const items = (DATA || []).map(it => it); // usa DATA già normalizzato
   // funzione per ottenere la lettera iniziale (A-Z) o '#'

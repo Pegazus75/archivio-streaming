@@ -25,6 +25,80 @@ function makeTelegramLink(code){
 }
 function uniq(arr){ return Array.from(new Set((arr||[]).filter(x=>x))); }
 
+// --- util: base64url encode per payload verso il bot ---
+function base64UrlEncode(str){
+  try {
+    const b = btoa(unescape(encodeURIComponent(str)));
+    return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  } catch(e){
+    return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+}
+
+// sendSeasonToBot (versione robusta, preferisce link singoli agli episodi)
+async function sendSeasonToBot(payloadObj){
+  try {
+    // Normalizzazione base
+    const codes = (payloadObj.items || []).map(c => (c || '').trim()).filter(Boolean);
+    console.log('[sendSeasonToBot] raw items:', codes.length);
+    if(codes.length === 0){
+      alert('Nessun codice disponibile per questa stagione.');
+      return { success: false, mode: 'no-codes' };
+    }
+
+    // Genera link singoli per ogni codice (se il valore è già un URL, lo rispettiamo)
+    const links = codes.map(c => {
+      if(/^https?:\/\//i.test(c)) return c;
+      return `https://t.me/${encodeURIComponent(BOT_USERNAME)}?start=${encodeURIComponent(c)}`;
+    });
+
+    console.log('[sendSeasonToBot] generati links:', links.length);
+
+    // Apri il primo link per "attivare" il bot (apertura singola, riduce blocco popup)
+    try {
+      window.open(links[0], '_blank');
+      console.log('[sendSeasonToBot] aperto primo link:', links[0]);
+    } catch(e){
+      console.warn('[sendSeasonToBot] impossibile aprire il primo link automaticamente:', e);
+    }
+
+    // Prova a copiare tutti i link negli appunti in modo che l'utente possa incollarli nel bot
+    const allLinksText = links.join('\n');
+    try {
+      await navigator.clipboard.writeText(allLinksText);
+      // Notifica più chiara per l'utente
+      alert(`Ho aperto il primo episodio in Telegram (se il browser lo ha permesso).\nTutti i link degli episodi sono stati copiati negli appunti: incollali nel bot di Telegram per ricevere i video (uno per uno).`);
+      return { success: true, mode: 'links-clipboard' };
+    } catch(e) {
+      console.warn('[sendSeasonToBot] clipboard fallita:', e);
+      // Se la copia fallisce, offri il download di un file .txt con tutti i link
+      try {
+        const blob = new Blob([allLinksText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const safeTitle = (payloadObj.title || 'season').replace(/[^\w\-]/g, '_').slice(0,80);
+        a.download = `${safeTitle}-links.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        alert('Non è stato possibile copiare negli appunti. Ho scaricato un file .txt con tutti i link degli episodi — aprilo e incolla i link nel bot di Telegram.');
+        return { success: true, mode: 'links-download' };
+      } catch(err2){
+        console.error('[sendSeasonToBot] download fallback fallito:', err2);
+        // Ultimo fallback: mostra i link in un prompt da copiare manualmente
+        prompt('Copia manualmente i seguenti link e incollali nel bot di Telegram:', allLinksText);
+        return { success: false, mode: 'prompt-fallback' };
+      }
+    }
+  } catch(err){
+    console.error('[sendSeasonToBot] errore inatteso:', err);
+    alert('Errore durante la preparazione dell\'invio della stagione. Controlla la console per dettagli.');
+    return { success: false, mode: 'exception' };
+  }
+}
+
 // toggle top search box visibility (show in home, hide in category/search)
 function toggleTopSearch(show) {
   const sb = document.getElementById('searchBox');       // input principale in header
@@ -357,7 +431,7 @@ function openModal(item){
     if(item.tipo === 'serie' && item.stagioni){
       const seasonKeys = Object.keys(item.stagioni).sort();
       seasonKeys.forEach((sk, idx) => {
-        const tab = document.createElement('button'); tab.className='season-tab'; tab.textContent = `Stagione ${sk}`;
+        const tab = document.createElement('button'); tab.className = 'season-tab'; tab.textContent = `Stagione ${sk}`;
         tab.addEventListener('click', ()=> {
           document.querySelectorAll('.season-panel').forEach(p => p.style.display = 'none');
           const panel = document.getElementById(`season-panel-${sk}`);
@@ -368,9 +442,9 @@ function openModal(item){
         });
         seasonTabs.appendChild(tab);
 
+        // create epsList first so header can reference it
         const panel = document.createElement('div'); panel.className='season-panel'; panel.id=`season-panel-${sk}`; panel.style.marginTop='12px'; panel.style.display='none';
-        const header = document.createElement('div'); header.className='season-header'; header.style.padding='8px'; header.style.background='#0b0b0b'; header.style.borderRadius='6px'; header.style.display='flex'; header.style.justifyContent='space-between'; header.style.cursor='pointer';
-        header.innerHTML = `<strong>Stagione ${sk}</strong><span style="color:#bbb">${(item.stagioni[sk].episodi||[]).length} episodi</span>`;
+
         const epsList = document.createElement('div'); epsList.className='season-episodes'; epsList.style.marginTop='8px';
         (item.stagioni[sk].episodi||[]).forEach(ep => {
           const eDiv = document.createElement('div'); eDiv.className='episode';
@@ -380,8 +454,75 @@ function openModal(item){
           if(code){ a.href = makeTelegramLink(code); a.textContent='Apri'; a.target='_blank'; a.rel='noopener'; } else { a.href='javascript:void(0)'; a.textContent='Nessun codice'; a.style.opacity='0.6'; }
           right.appendChild(a); eDiv.appendChild(left); eDiv.appendChild(right); epsList.appendChild(eDiv);
         });
+
+        // header per ogni stagione con pulsante "Invia stagione al bot"
+        const header = document.createElement('div');
+        header.className = 'season-header';
+        header.style.padding = '8px';
+        header.style.background = '#0b0b0b';
+        header.style.borderRadius = '6px';
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+        header.style.cursor = 'pointer';
+
+        const headerLeft = document.createElement('div');
+        headerLeft.innerHTML = `<strong>Stagione ${sk}</strong><span style="color:#bbb;margin-left:10px">${(item.stagioni[sk].episodi||[]).length} episodi</span>`;
+
+        const headerRight = document.createElement('div');
+        headerRight.style.display = 'flex';
+        headerRight.style.gap = '8px';
+        headerRight.style.alignItems = 'center';
+
+        // toggle button per mostrare/nascondere episodi
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'season-toggle';
+        toggleBtn.style.background = 'transparent';
+        toggleBtn.style.border = '1px solid rgba(255,255,255,0.04)';
+        toggleBtn.style.color = '#ddd';
+        toggleBtn.style.padding = '6px 10px';
+        toggleBtn.style.borderRadius = '6px';
+        toggleBtn.style.cursor = 'pointer';
+        toggleBtn.textContent = 'Apri/Chiudi';
+        toggleBtn.addEventListener('click', (ev)=> { 
+          ev.stopPropagation();
+          epsList.style.display = epsList.style.display === 'block' ? 'none' : 'block';
+        });
+
+        // pulsante per inviare tutta la stagione al bot
+        const sendSeasonBtn = document.createElement('button');
+        sendSeasonBtn.className = 'btn';
+        sendSeasonBtn.textContent = 'Invia stagione al bot';
+        sendSeasonBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          // raccogli tutti i telegram_code degli episodi
+          const codes = (item.stagioni[sk].episodi || []).map(ep => (ep.telegram_code || ep.telegram || '').trim()).filter(c => c);
+          if(!codes.length){
+            alert('Nessun codice Telegram trovato per questa stagione.');
+            return;
+          }
+          // prepara payload: include info serie + stagione per il bot
+          const payload = {
+            title: item.titolo || '',
+            season: String(sk),
+            items: codes
+          };
+          await sendSeasonToBot(payload);
+        });
+
+        headerRight.appendChild(toggleBtn);
+        headerRight.appendChild(sendSeasonBtn);
+
+        header.appendChild(headerLeft);
+        header.appendChild(headerRight);
+
+        // attach header and epsList to panel (header click also toggles)
         header.addEventListener('click', ()=> { epsList.style.display = epsList.style.display === 'block' ? 'none' : 'block'; } );
-        panel.appendChild(header); panel.appendChild(epsList); if(epDiv) epDiv.appendChild(panel);
+
+        panel.appendChild(header);
+        panel.appendChild(epsList);
+
+        if(epDiv) epDiv.appendChild(panel);
         if(idx === 0){ panel.style.display = 'block'; tab.classList.add('active'); }
       });
       const tbtn = document.getElementById('modalTelegram'); if(tbtn) tbtn.style.display = 'none';
@@ -719,7 +860,6 @@ function renderListPage(){
       alphaIndexEl.style.zIndex = 1200;
       alphaIndexEl.style.left = '12px';
       alphaIndexEl.style.right = '12px';
-      // keep background/visuals reasonable when sticky
       alphaIndexEl.style.background = 'linear-gradient(180deg, rgba(6,6,6,0.95), rgba(6,6,6,0.92))';
       alphaIndexEl.style.padding = '8px';
       alphaIndexEl.style.borderRadius = '8px';
@@ -729,7 +869,6 @@ function renderListPage(){
   }
   updateAlphaTop();
   window.addEventListener('resize', updateAlphaTop);
-  // ricalcola anche al scroll se siamo nella pagina lista
   window.addEventListener('scroll', () => { if(document.getElementById('alpha-list')) updateAlphaTop(); });
 
   // genera map lettera -> items
@@ -769,10 +908,8 @@ function renderListPage(){
     });
 
     renderAlphaIndex(Object.keys(map).sort((a,b) => {
-      // metti '#' alla fine
       if(a === '#') return 1;
       if(b === '#') return -1;
-      // Usa localeCompare per buoni risultati con accenti
       return a.localeCompare(b, 'it', {sensitivity:'base'});
     }));
 
