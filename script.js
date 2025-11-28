@@ -79,7 +79,8 @@ function normalizeItem(it){
 let DATA = [];
 let CURRENT_FILTERED = null;
 let categoryState = {};
-const DB_URL = "https://raw.githubusercontent.com/Pegazus75/archivio-streaming/main/database.json";
+// QUI IL NUOVO LINK:
+const DB_URL = "https://raw.githubusercontent.com/Pegazus75/archivio-streaming/main/archivio-streaming/database.json";
 
 async function loadDatabase(){
   try {
@@ -564,7 +565,7 @@ function renderSearchPage(query){
         <div class="controls-inline">
           <select id="catTypeFilter"><option value="all">Tutti</option><option value="film">Film</option><option value="serie">Serie</option></select>
           <select id="catGenreFilter"><option value="">Tutti i generi</option></select>
-          <select id="catYearFilter"><option value="">Tutti gli anni</option></select>
+          <select id="catYearFilter"><option value="">Tutti gli anni</posteria></select>
           <input id="catSearchBox" placeholder="Raffina ricerca..." style="padding:8px;border-radius:6px;background:#0f0f10;color:#eee;border:1px solid #222">
         </div>
       </div>
