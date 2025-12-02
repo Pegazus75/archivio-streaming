@@ -25,6 +25,16 @@ function makeTelegramLink(code){
 }
 function uniq(arr){ return Array.from(new Set((arr||[]).filter(x=>x))); }
 
+// normalizza le etichette dei generi lato frontend
+function normalizeGenreLabel(g) {
+  if(!g || typeof g !== 'string') return '';
+  const k = g.trim().toLowerCase();
+  if (['anime','animation','animazioni','animazione'].includes(k)) {
+    return 'Animazione'; // etichetta unica per tutte le varianti
+  }
+  return g.trim();
+}
+
 // toggle top search box visibility (show in home, hide in category/search)
 function toggleTopSearch(show) {
   const sb = document.getElementById('searchBox');       // input principale in header
@@ -219,7 +229,12 @@ function renderCategoryPage(catId){
     </section>
   `;
 
-  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort();
+  // generi normalizzati per la pagina categoria
+  const allGenres = uniq(
+    [].concat(...DATA.map(d=>d.generi||[]))
+      .map(normalizeGenreLabel)
+  ).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+
   const genreSel = document.getElementById('catGenreFilter');
   allGenres.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; genreSel.appendChild(o); });
   const years = uniq(DATA.map(d=>d.anno)).filter(x=>x).sort((a,b)=> b - a);
@@ -402,12 +417,21 @@ function closeModal(){ const m = document.getElementById('detailModal'); if(m){ 
 
 /* filters home */
 function buildFilters(){
-  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort((a,b)=>a.localeCompare(b));
+  // Prende tutti i generi dal DB, li normalizza e li de-duplica
+  const allGenresNorm = uniq(
+    [].concat(...DATA.map(d => d.generi || []))
+      .map(normalizeGenreLabel)
+  ).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+
   const genreSelect = document.getElementById('genreFilter');
   if(genreSelect){
     genreSelect.innerHTML = '<option value="">Tutti i generi</option>';
-    ['Anime','Animation','Animazione'].forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; genreSelect.appendChild(o); });
-    allGenres.forEach(g => { const o=document.createElement('option'); o.value=g; o.textContent=g; genreSelect.appendChild(o); });
+    allGenresNorm.forEach(g => {
+      const o=document.createElement('option');
+      o.value=g;
+      o.textContent=g;
+      genreSelect.appendChild(o);
+    });
     genreSelect.addEventListener('change', applyAllFilters);
   }
   const yearSelect = document.getElementById('yearFilter');
@@ -573,7 +597,13 @@ function renderSearchPage(query){
       <div style="text-align:center;margin-top:14px;"><button id="catLoadMore" class="load-more">Carica altri</button></div>
     </section>
   `;
-  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort();
+
+  // generi normalizzati anche nella pagina di ricerca
+  const allGenres = uniq(
+    [].concat(...DATA.map(d=>d.generi||[]))
+      .map(normalizeGenreLabel)
+  ).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+
   const genreSel = document.getElementById('catGenreFilter');
   allGenres.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; genreSel.appendChild(o); });
   const years = uniq(DATA.map(d=>d.anno)).filter(x=>x).sort((a,b)=> b - a);
