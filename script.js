@@ -5,6 +5,7 @@ const ROW_LOAD = 18;
 const CAT_BATCH = 24;
 const CAROUSEL_STEP = 400;
 const FALLBACK_POSTER = '/mnt/data/358b12ab-7b1b-4aa0-bbaf-5941def2cd48.png';
+const COLLECTION_BATCH = 12; // quante collezioni caricare per volta
 
 // helpers
 function sanitizeTitle(t){
@@ -89,6 +90,9 @@ function normalizeItem(it){
 let DATA = [];
 let CURRENT_FILTERED = null;
 let categoryState = {};
+let COLLECTIONS = [];        // lista collezioni { name, items, poster }
+let collectionsOffset = 0;   // offset per "Carica altri"
+
 // QUI IL NUOVO LINK:
 const DB_URL = "https://raw.githubusercontent.com/Pegazus75/archivio-streaming/main/archivio-streaming/database.json";
 
@@ -117,6 +121,7 @@ const ROW_CONFIG = [
   {id:'series', title:'Serie TV', items: (f)=> (f||DATA).filter(x=> x.tipo==='serie')},
   {id:'cineteca', title:'Cineteca (≤1999)', items: (f)=> (f||DATA).filter(x=> x.tipo==='film' && x.categoria==='cineteca')},
   {id:'animation', title:'Animazione', items: (f)=> (f||DATA).filter(x => x.categoria==='animazione' || (x.generi||[]).join(' ').toLowerCase().includes('anime'))}
+  // La sezione "Collezioni" la gestiamo con una pagina dedicata, non come riga in home
 ];
 
 function initUI(){
@@ -202,6 +207,153 @@ function buildRows(){
   if(heroNext) heroNext.addEventListener('click', ()=> shiftHero(1));
 }
 
+/* ------- COLLEZIONI (NUOVA SEZIONE) ------- */
+
+// costruisce l'indice delle collezioni a partire da DATA
+function buildCollectionsIndex(){
+  const map = {};
+  (DATA || []).forEach(it => {
+    if(it.tipo === 'film' && it.collezione){
+      const name = String(it.collezione).trim();
+      if(!name) return;
+      if(!map[name]) map[name] = [];
+      map[name].push(it);
+    }
+  });
+
+  COLLECTIONS = Object.entries(map).map(([name, items]) => {
+    // ordiniamo i film della collezione per anno (se presente)
+    items.sort((a,b) => String(a.anno||'').localeCompare(String(b.anno||'')));
+    const posterItem = items.find(x=>x.locandina) || items[0];
+    return {
+      name,
+      items,
+      poster: (posterItem && posterItem.locandina) || FALLBACK_POSTER
+    };
+  }).sort((a,b) => a.name.localeCompare(b.name, 'it', {sensitivity:'base'}));
+}
+
+// render pagina principale collezioni (griglia di schede)
+function renderCollectionsPage(){
+  const app = document.getElementById('main-content');
+  if(!app) return;
+
+  buildCollectionsIndex(); // assicuriamoci che COLLECTIONS sia aggiornata
+
+  app.innerHTML = `
+    <section class="section category-page" id="collections-page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h2>Collezioni</h2>
+      </div>
+      <div id="collectionsGrid" class="grid category-grid"></div>
+      <div style="text-align:center;margin-top:14px;">
+        <button id="collectionsLoadMore" class="load-more">Carica altri</button>
+      </div>
+    </section>
+  `;
+
+  collectionsOffset = 0;
+  renderCollectionsBatch(true);
+
+  const loadBtn = document.getElementById('collectionsLoadMore');
+  if(loadBtn){
+    loadBtn.addEventListener('click', () => {
+      collectionsOffset += COLLECTION_BATCH;
+      renderCollectionsBatch(false);
+    });
+  }
+}
+
+// renderizza un "batch" di schede collezioni
+function renderCollectionsBatch(reset){
+  const grid = document.getElementById('collectionsGrid');
+  if(!grid) return;
+
+  if(reset) grid.innerHTML = '';
+
+  const slice = COLLECTIONS.slice(collectionsOffset, collectionsOffset + COLLECTION_BATCH);
+
+  if(slice.length === 0 && collectionsOffset === 0){
+    grid.innerHTML = '<div style="color:#bbb;padding:16px">Nessuna collezione</div>';
+  } else {
+    slice.forEach(col => {
+      const card = document.createElement('div');
+      card.className = 'card cat-card';
+      card.style.cursor = 'pointer';
+
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = col.name;
+      img.src = col.poster || FALLBACK_POSTER;
+      img.addEventListener('error', ()=> img.src = FALLBACK_POSTER);
+
+      const info = document.createElement('div');
+      info.className = 'info';
+
+      const strong = document.createElement('strong');
+      strong.textContent = col.name;
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+
+      const count = col.items.length;
+      const years = uniq(col.items.map(f=>f.anno).filter(Boolean)).sort();
+      let yearsText = '';
+      if(years.length === 1) yearsText = years[0];
+      else if(years.length > 1) yearsText = `${years[0]} - ${years[years.length-1]}`;
+
+      meta.textContent = `${count} film${count !== 1 ? '' : ''}${yearsText ? ' · ' + yearsText : ''}`;
+
+      info.appendChild(strong);
+      info.appendChild(meta);
+
+      card.appendChild(img);
+      card.appendChild(info);
+
+      card.addEventListener('click', () => openCollectionDetail(col.name));
+
+      grid.appendChild(card);
+    });
+  }
+
+  const loadBtn = document.getElementById('collectionsLoadMore');
+  if(loadBtn){
+    if(collectionsOffset + COLLECTION_BATCH >= COLLECTIONS.length) {
+      loadBtn.style.display = 'none';
+    } else {
+      loadBtn.style.display = 'inline-block';
+    }
+  }
+}
+
+// dettaglio di una singola collezione (tutti i film dentro)
+function openCollectionDetail(name){
+  const col = COLLECTIONS.find(c => c.name === name);
+  const app = document.getElementById('main-content');
+  if(!col || !app) return;
+
+  app.innerHTML = `
+    <section class="section category-page" id="collection-detail">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div>
+          <h2>Collezione: ${escapeHtml(name)}</h2>
+          <div style="color:#bbb;font-size:14px;">${col.items.length} film</div>
+        </div>
+        <button id="collectionBack" class="btn">‹ Torna alle collezioni</button>
+      </div>
+      <div id="collectionDetailGrid" class="grid category-grid"></div>
+    </section>
+  `;
+
+  const grid = document.getElementById('collectionDetailGrid');
+  col.items.forEach(it => grid.appendChild(makeCard(it)));
+
+  const backBtn = document.getElementById('collectionBack');
+  if(backBtn){
+    backBtn.addEventListener('click', () => renderCollectionsPage());
+  }
+}
+
 /* Category page + special 'list' handling */
 function renderCategoryPage(catId){
   if(catId === 'list'){ 
@@ -209,6 +361,14 @@ function renderCategoryPage(catId){
     document.querySelectorAll('.top-tabs .tab').forEach(t=> t.classList.toggle('active', (t.dataset.view===catId)));
     renderListPage(); 
     return; 
+  }
+
+  // speciale: pagina Collezioni
+  if(catId === 'collections'){
+    toggleTopSearch(false);
+    document.querySelectorAll('.top-tabs .tab').forEach(t=> t.classList.toggle('active', (t.dataset.view===catId)));
+    renderCollectionsPage();
+    return;
   }
 
   const app = document.getElementById('main-content');
