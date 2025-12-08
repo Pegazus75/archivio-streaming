@@ -92,6 +92,7 @@ let CURRENT_FILTERED = null;
 let categoryState = {};
 let COLLECTIONS = [];        // lista collezioni { name, items, poster }
 let collectionsOffset = 0;   // offset per "Carica altri"
+let collectionsSearchQuery = ''; // <<< query ricerca collezioni
 
 // QUI IL NUOVO LINK:
 const DB_URL = "https://raw.githubusercontent.com/Pegazus75/archivio-streaming/main/archivio-streaming/database.json";
@@ -231,6 +232,9 @@ function buildCollectionsIndex(){
       poster: (posterItem && posterItem.locandina) || FALLBACK_POSTER
     };
   }).sort((a,b) => a.name.localeCompare(b.name, 'it', {sensitivity:'base'}));
+
+  // reset query quando si ricostruisce l'indice
+  collectionsSearchQuery = ''; // <<<
 }
 
 // render pagina principale collezioni (griglia di schede)
@@ -242,8 +246,10 @@ function renderCollectionsPage(){
 
   app.innerHTML = `
     <section class="section category-page" id="collections-page">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
         <h2>Collezioni</h2>
+        <input id="collectionsSearchBox" placeholder="Cerca collezione o titolo..." 
+          style="padding:8px;border-radius:6px;background:#0f0f10;color:#eee;border:1px solid #222;min-width:220px;">
       </div>
       <div id="collectionsGrid" class="grid category-grid"></div>
       <div style="text-align:center;margin-top:14px;">
@@ -253,6 +259,18 @@ function renderCollectionsPage(){
   `;
 
   collectionsOffset = 0;
+
+  // --- NUOVA RICERCA COLLEZIONI ---
+  const searchInput = document.getElementById('collectionsSearchBox');
+  if(searchInput){
+    searchInput.value = collectionsSearchQuery || '';
+    searchInput.addEventListener('input', () => {
+      collectionsSearchQuery = (searchInput.value || '').trim().toLowerCase();
+      collectionsOffset = 0;
+      renderCollectionsBatch(true); // reset griglia con filtro
+    });
+  }
+
   renderCollectionsBatch(true);
 
   const loadBtn = document.getElementById('collectionsLoadMore');
@@ -269,12 +287,21 @@ function renderCollectionsBatch(reset){
   const grid = document.getElementById('collectionsGrid');
   if(!grid) return;
 
+  // Applichiamo la ricerca su nome collezione e titoli dei film
+  const baseList = COLLECTIONS.filter(col => {
+    if(!collectionsSearchQuery) return true;
+    const q = collectionsSearchQuery;
+    const inName = col.name.toLowerCase().includes(q);
+    const inTitles = col.items.some(it => String(it.titolo||'').toLowerCase().includes(q));
+    return inName || inTitles;
+  });
+
   if(reset) grid.innerHTML = '';
 
-  const slice = COLLECTIONS.slice(collectionsOffset, collectionsOffset + COLLECTION_BATCH);
+  const slice = baseList.slice(collectionsOffset, collectionsOffset + COLLECTION_BATCH);
 
   if(slice.length === 0 && collectionsOffset === 0){
-    grid.innerHTML = '<div style="color:#bbb;padding:16px">Nessuna collezione</div>';
+    grid.innerHTML = '<div style="color:#bbb;padding:16px">Nessuna collezione trovata</div>';
   } else {
     slice.forEach(col => {
       const card = document.createElement('div');
@@ -318,7 +345,8 @@ function renderCollectionsBatch(reset){
 
   const loadBtn = document.getElementById('collectionsLoadMore');
   if(loadBtn){
-    if(collectionsOffset + COLLECTION_BATCH >= COLLECTIONS.length) {
+    const total = baseList.length;
+    if(collectionsOffset + COLLECTION_BATCH >= total) {
       loadBtn.style.display = 'none';
     } else {
       loadBtn.style.display = 'inline-block';
