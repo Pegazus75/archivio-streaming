@@ -1,4 +1,4 @@
-// CONFIG 
+// CONFIG  
 const BOT_USERNAME = "pega_movies_and_series_bot";
 const HERO_COUNT = 6;
 const ROW_LOAD = 18;
@@ -226,10 +226,19 @@ function buildCollectionsIndex(){
     // ordiniamo i film della collezione per anno (se presente)
     items.sort((a,b) => String(a.anno||'').localeCompare(String(b.anno||'')));
     const posterItem = items.find(x=>x.locandina) || items[0];
+
+    // >>> ECCEZIONE: locandina specifica per "Disney famiglia"
+    // usa controllo case-insensitive sul nome della collezione
+    const specialName = String(name || '').trim().toLowerCase();
+    let posterUrl = (posterItem && posterItem.locandina) || FALLBACK_POSTER;
+    if(specialName === 'disney famiglia') {
+      posterUrl = 'https://i.postimg.cc/MGKFXc5p/disney1.jpg';
+    }
+
     return {
       name,
       items,
-      poster: (posterItem && posterItem.locandina) || FALLBACK_POSTER
+      poster: posterUrl ? escapeUrl(posterUrl) : FALLBACK_POSTER
     };
   }).sort((a,b) => a.name.localeCompare(b.name, 'it', {sensitivity:'base'}));
 
