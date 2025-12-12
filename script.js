@@ -246,7 +246,7 @@ function buildCollectionsIndex(){
   collectionsSearchQuery = ''; // <<<
 }
 
-// render pagina principale collezioni (griglia di schede)
+// render pagina principale collezioni (griglia di schede) + vista alfabetica A-Z
 function renderCollectionsPage(){
   const app = document.getElementById('main-content');
   if(!app) return;
@@ -257,10 +257,22 @@ function renderCollectionsPage(){
     <section class="section category-page" id="collections-page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
         <h2>Collezioni</h2>
-        <input id="collectionsSearchBox" placeholder="Cerca collezione o titolo..." 
-          style="padding:8px;border-radius:6px;background:#0f0f10;color:#eee;border:1px solid #222;min-width:220px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="collectionsSearchBox" placeholder="Cerca collezione o titolo..." 
+            style="padding:8px;border-radius:6px;background:#0f0f10;color:#eee;border:1px solid #222;min-width:220px;">
+          <div>
+            <button id="collectionsViewGrid" class="btn" style="margin-right:6px;">Griglia</button>
+            <button id="collectionsViewAlpha" class="btn">Elenco A–Z</button>
+          </div>
+        </div>
       </div>
+
       <div id="collectionsGrid" class="grid category-grid"></div>
+      <div id="collectionsAlphaWrapper" style="display:none;margin-top:12px;">
+        <div id="collectionsAlphaIndex" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+        <div id="collectionsAlphaContent" class="alpha-content"></div>
+      </div>
+
       <div style="text-align:center;margin-top:14px;">
         <button id="collectionsLoadMore" class="load-more">Carica altri</button>
       </div>
@@ -277,8 +289,36 @@ function renderCollectionsPage(){
       collectionsSearchQuery = (searchInput.value || '').trim().toLowerCase();
       collectionsOffset = 0;
       renderCollectionsBatch(true); // reset griglia con filtro
+      // aggiorna anche vista alfabetica
+      renderCollectionsAlpha();
     });
   }
+
+  // toggle view buttons
+  const gridBtn = document.getElementById('collectionsViewGrid');
+  const alphaBtn = document.getElementById('collectionsViewAlpha');
+  const gridWrap = document.getElementById('collectionsGrid');
+  const alphaWrapper = document.getElementById('collectionsAlphaWrapper');
+
+  function showGrid(){
+    gridWrap.style.display = '';
+    alphaWrapper.style.display = 'none';
+    gridBtn.classList.add('active');
+    alphaBtn.classList.remove('active');
+  }
+  function showAlpha(){
+    gridWrap.style.display = 'none';
+    alphaWrapper.style.display = '';
+    gridBtn.classList.remove('active');
+    alphaBtn.classList.add('active');
+    renderCollectionsAlpha(); // costruisce la vista alfabetica
+  }
+
+  if(gridBtn) gridBtn.addEventListener('click', showGrid);
+  if(alphaBtn) alphaBtn.addEventListener('click', showAlpha);
+
+  // default: mostra griglia
+  showGrid();
 
   renderCollectionsBatch(true);
 
@@ -388,6 +428,155 @@ function openCollectionDetail(name){
   const backBtn = document.getElementById('collectionBack');
   if(backBtn){
     backBtn.addEventListener('click', () => renderCollectionsPage());
+  }
+}
+
+/* ---------- VISTA ALFABETICA COLLEZIONI (A-Z) ---------- */
+
+// funzione helper: lettera iniziale per etichette (A-Z oppure '#')
+function initialLetterForString(s){
+  if(!s) return '#';
+  const c = s.trim().charAt(0).toUpperCase();
+  if(/[A-ZÀ-Ž]/i.test(c)) return c;
+  return '#';
+}
+
+// costruisce e renderizza la vista alfabetica delle collezioni
+function renderCollectionsAlpha(){
+  // Assicurati che COLLECTIONS sia aggiornato
+  buildCollectionsIndex();
+
+  const indexEl = document.getElementById('collectionsAlphaIndex');
+  const contentEl = document.getElementById('collectionsAlphaContent');
+  if(!indexEl || !contentEl) return;
+
+  // filtra in base alla ricerca corrente
+  const baseList = COLLECTIONS.filter(col => {
+    if(!collectionsSearchQuery) return true;
+    const q = collectionsSearchQuery;
+    const inName = col.name.toLowerCase().includes(q);
+    const inTitles = col.items.some(it => String(it.titolo||'').toLowerCase().includes(q));
+    return inName || inTitles;
+  });
+
+  // mappa lettera -> collezioni
+  const map = {};
+  baseList.forEach(col => {
+    const L = initialLetterForString(col.name);
+    if(!map[L]) map[L] = [];
+    map[L].push(col);
+  });
+
+  const orderedLetters = Object.keys(map).sort((a,b) => {
+    if(a === '#') return 1;
+    if(b === '#') return -1;
+    return a.localeCompare(b, 'it', {sensitivity:'base'});
+  });
+
+  // render index lettere (A..Z + #)
+  indexEl.innerHTML = '';
+  const present = new Set(orderedLetters);
+  const order = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  order.push('#');
+  order.forEach(ch => {
+    const btn = document.createElement('button');
+    btn.className = 'alpha-btn';
+    btn.textContent = ch;
+    btn.style.padding = '6px 8px';
+    btn.style.borderRadius = '6px';
+    btn.style.border = '1px solid transparent';
+    btn.style.background = present.has(ch) ? '#141414' : 'transparent';
+    btn.style.color = present.has(ch) ? '#fff' : '#777';
+    btn.style.cursor = present.has(ch) ? 'pointer' : 'default';
+    if(present.has(ch)) {
+      btn.addEventListener('click', ()=> {
+        const el = document.getElementById(`collections-alpha-section-${ch}`);
+        if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+      });
+    }
+    indexEl.appendChild(btn);
+  });
+
+  // render content
+  contentEl.innerHTML = '';
+  if(orderedLetters.length === 0){
+    contentEl.innerHTML = '<div style="color:#bbb;padding:16px">Nessuna collezione</div>';
+    return;
+  }
+
+  orderedLetters.forEach(letter => {
+    const section = document.createElement('div');
+    section.id = `collections-alpha-section-${letter}`;
+    section.style.marginBottom = '22px';
+    const h = document.createElement('h3'); h.textContent = letter; h.style.margin = '6px 0 10px';
+    section.appendChild(h);
+
+    const list = document.createElement('div'); list.style.display = 'grid'; list.style.gridTemplateColumns = '1fr'; list.style.gap = '8px';
+
+    map[letter].forEach(col => {
+      const row = document.createElement('div');
+      row.className = 'collection-alpha-item';
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.padding = '8px';
+      row.style.borderRadius = '6px';
+      row.style.margin = '6px 0';
+      row.style.background = '#0b0b0b';
+      row.style.cursor = 'pointer';
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '12px';
+
+      const img = document.createElement('img'); img.src = col.poster || FALLBACK_POSTER; img.loading='lazy';
+      img.style.width = '54px'; img.style.height = '76px'; img.style.objectFit = 'cover'; img.style.borderRadius = '4px';
+      img.addEventListener('error', ()=> img.src = FALLBACK_POSTER);
+      const meta = document.createElement('div');
+      const years = uniq(col.items.map(f=>f.anno).filter(Boolean)).sort();
+      let yearsText = '';
+      if(years.length === 1) yearsText = years[0];
+      else if(years.length > 1) yearsText = `${years[0]} - ${years[years.length-1]}`;
+      meta.innerHTML = `<strong style="display:block">${escapeHtml(col.name)}</strong><span style="font-size:12px;color:#bbb">${col.items.length} film${yearsText ? ' · ' + yearsText : ''}</span>`;
+
+      left.appendChild(img); left.appendChild(meta);
+
+      const right = document.createElement('div');
+      right.style.minWidth = '140px';
+      right.style.textAlign = 'right';
+      const openBtn = document.createElement('button');
+      openBtn.className = 'btn';
+      openBtn.textContent = 'Apri';
+      openBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openCollectionDetail(col.name); });
+      right.appendChild(openBtn);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      row.addEventListener('click', ()=> openCollectionDetail(col.name));
+      list.appendChild(row);
+    });
+
+    section.appendChild(list);
+    contentEl.appendChild(section);
+  });
+
+  // sticky behavior per index (simile a pagina lista)
+  const idx = document.getElementById('collectionsAlphaIndex');
+  if(idx){
+    const header = document.querySelector('.site-header');
+    const headerHeight = header ? header.getBoundingClientRect().height : 72;
+    const gap = 8;
+    idx.style.position = 'sticky';
+    idx.style.top = (headerHeight + gap) + 'px';
+    idx.style.zIndex = 1200;
+    idx.style.left = '12px';
+    idx.style.right = '12px';
+    idx.style.background = 'linear-gradient(180deg, rgba(6,6,6,0.95), rgba(6,6,6,0.92))';
+    idx.style.padding = '8px';
+    idx.style.borderRadius = '8px';
+    idx.style.boxShadow = '0 6px 24px rgba(0,0,0,0.6)';
+    idx.style.backdropFilter = 'blur(4px)';
   }
 }
 
