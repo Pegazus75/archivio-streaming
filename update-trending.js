@@ -1,59 +1,86 @@
 import fs from "fs";
-import fetch from "node-fetch";
 
-// 1️⃣ chiave TMDB (la inseriremo dopo su GitHub)
+// ==============================
+// CONFIG
+// ==============================
 const TMDB_KEY = process.env.TMDB_KEY;
-
-// 2️⃣ percorsi file
 const DB_PATH = "./database.json";
 const OUT_PATH = "./trending-history.json";
 
-async function run() {
+// ==============================
+// CHECK CHIAVE
+// ==============================
+if (!TMDB_KEY) {
+  console.error("❌ ERRORE: TMDB_KEY mancante");
+  process.exit(1);
+}
 
-  // 🔹 carichiamo il TUO database
+// ==============================
+// MAIN
+// ==============================
+async function run() {
+  console.log("▶ Avvio aggiornamento titoli del momento");
+
+  // 🔹 carica il TUO database
   const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
 
-  // 🔹 creiamo un set di titoli presenti (minuscolo)
+  // 🔹 set titoli presenti nel DB
   const titlesInDb = new Set(
-    db.map(item => item.titolo.toLowerCase())
+    db
+      .map(item => item.titolo)
+      .filter(Boolean)
+      .map(t => t.toLowerCase())
   );
 
-  // 🔹 prendiamo i trend del giorno da TMDB
-  const response = await fetch(
-    `https://api.themoviedb.org/3/trending/all/day?api_key=${TMDB_KEY}&language=it-IT`
-  );
+  console.log(`📚 Titoli nel DB: ${titlesInDb.size}`);
+
+  // 🔹 chiamata TMDB
+  const url = `https://api.themoviedb.org/3/trending/all/day?api_key=${TMDB_KEY}&language=it-IT`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`TMDB errore HTTP ${response.status}`);
+  }
 
   const data = await response.json();
 
-  // 🔹 data di oggi (YYYY-MM-DD)
+  // 🔹 data di oggi
   const today = new Date().toISOString().slice(0, 10);
 
-  // 🔹 prendiamo solo i titoli che esistono nel tuo DB
+  // 🔹 filtra solo titoli presenti nel DB
   const matchedTitles = data.results
     .map(item => item.title || item.name)
     .filter(Boolean)
-    .filter(title =>
-      titlesInDb.has(title.toLowerCase())
-    )
-    .slice(0, 16); // minimo 16
+    .filter(title => titlesInDb.has(title.toLowerCase()))
+    .slice(0, 16);
 
-  // se non trova nulla, non scrive nulla
-  if (!matchedTitles.length) return;
+  console.log(`🔥 Titoli trovati oggi: ${matchedTitles.length}`);
 
-  // 🔹 carichiamo lo storico esistente
+  if (!matchedTitles.length) {
+    console.log("⚠ Nessun titolo trovato, esco");
+    return;
+  }
+
+  // 🔹 carica storico
   let history = {};
   if (fs.existsSync(OUT_PATH)) {
     history = JSON.parse(fs.readFileSync(OUT_PATH, "utf8"));
   }
 
-  // 🔹 aggiungiamo la giornata
+  // 🔹 aggiunge la giornata
   history[today] = matchedTitles;
 
-  // 🔹 salviamo lo storico
+  // 🔹 salva file
   fs.writeFileSync(
     OUT_PATH,
     JSON.stringify(history, null, 2)
   );
+
+  console.log("✅ trending-history.json aggiornato");
 }
 
-run();
+run().catch(err => {
+  console.error("❌ ERRORE:", err.message);
+  process.exit(1);
+});
+
