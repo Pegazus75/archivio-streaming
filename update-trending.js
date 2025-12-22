@@ -1,4 +1,4 @@
-import fs from "fs";
+const fs = require("fs");
 
 // ==============================
 // CONFIG
@@ -21,10 +21,10 @@ if (!TMDB_KEY) {
 async function run() {
   console.log("▶ Avvio aggiornamento titoli del momento");
 
-  // 🔹 carica il TUO database
+  // 🔹 carica il database
   const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
 
-  // 🔹 set titoli presenti nel DB
+  // 🔹 set titoli presenti
   const titlesInDb = new Set(
     db
       .map(item => item.titolo)
@@ -34,7 +34,7 @@ async function run() {
 
   console.log(`📚 Titoli nel DB: ${titlesInDb.size}`);
 
-  // 🔹 chiamata TMDB
+  // 🔹 chiamata TMDB (fetch nativo Node 18)
   const url = `https://api.themoviedb.org/3/trending/all/day?api_key=${TMDB_KEY}&language=it-IT`;
   const response = await fetch(url);
 
@@ -47,7 +47,7 @@ async function run() {
   // 🔹 data di oggi
   const today = new Date().toISOString().slice(0, 10);
 
-  // 🔹 filtra solo titoli presenti nel DB
+  // 🔹 filtra titoli presenti nel DB
   const matchedTitles = data.results
     .map(item => item.title || item.name)
     .filter(Boolean)
@@ -57,7 +57,7 @@ async function run() {
   console.log(`🔥 Titoli trovati oggi: ${matchedTitles.length}`);
 
   if (!matchedTitles.length) {
-    console.log("⚠ Nessun titolo trovato, esco");
+    console.log("⚠ Nessun titolo trovato");
     return;
   }
 
@@ -83,4 +83,3 @@ run().catch(err => {
   console.error("❌ ERRORE:", err.message);
   process.exit(1);
 });
-
