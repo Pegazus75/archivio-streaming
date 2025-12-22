@@ -1,0 +1,30 @@
+name: Aggiorna Titoli del Momento
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # ogni giorno alle 03:00
+  workflow_dispatch:     # avvio manuale se vuoi
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - run: npm install node-fetch
+
+      - run: node update-trending.js
+        env:
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+
+      - run: |
+          git config user.name "trending-bot"
+          git config user.email "bot@github"
+          git add trending-history.json
+          git commit -m "aggiorna titoli del momento" || echo "Nessuna modifica"
+          git push
