@@ -1,10 +1,11 @@
-// CONFIG 
+// CONFIG  
 const BOT_USERNAME = "pega_movies_and_series_bot";
 const HERO_COUNT = 6;
 const ROW_LOAD = 18;
 const CAT_BATCH = 24;
 const CAROUSEL_STEP = 400;
 const FALLBACK_POSTER = '/mnt/data/358b12ab-7b1b-4aa0-bbaf-5941def2cd48.png';
+const COLLECTION_BATCH = 12; // quante collezioni caricare per volta
 
 // helpers
 function sanitizeTitle(t){
@@ -24,6 +25,16 @@ function makeTelegramLink(code){
   return `https://t.me/${encodeURIComponent(BOT_USERNAME)}?start=${encodeURIComponent(code)}`;
 }
 function uniq(arr){ return Array.from(new Set((arr||[]).filter(x=>x))); }
+
+// normalizza le etichette dei generi lato frontend
+function normalizeGenreLabel(g) {
+  if(!g || typeof g !== 'string') return '';
+  const k = g.trim().toLowerCase();
+  if (['anime','animation','animazioni','animazione'].includes(k)) {
+    return 'Animazione'; // etichetta unica per tutte le varianti
+  }
+  return g.trim();
+}
 
 // toggle top search box visibility (show in home, hide in category/search)
 function toggleTopSearch(show) {
@@ -79,6 +90,11 @@ function normalizeItem(it){
 let DATA = [];
 let CURRENT_FILTERED = null;
 let categoryState = {};
+let COLLECTIONS = [];        // lista collezioni { name, items, poster }
+let collectionsOffset = 0;   // offset per "Carica altri"
+let collectionsSearchQuery = ''; // <<< query ricerca collezioni
+
+// QUI IL NUOVO LINK:
 const DB_URL = "https://raw.githubusercontent.com/Pegazus75/archivio-streaming/main/database.json";
 
 async function loadDatabase(){
@@ -106,6 +122,7 @@ const ROW_CONFIG = [
   {id:'series', title:'Serie TV', items: (f)=> (f||DATA).filter(x=> x.tipo==='serie')},
   {id:'cineteca', title:'Cineteca (≤1999)', items: (f)=> (f||DATA).filter(x=> x.tipo==='film' && x.categoria==='cineteca')},
   {id:'animation', title:'Animazione', items: (f)=> (f||DATA).filter(x => x.categoria==='animazione' || (x.generi||[]).join(' ').toLowerCase().includes('anime'))}
+  // La sezione "Collezioni" la gestiamo con una pagina dedicata, non come riga in home
 ];
 
 function initUI(){
@@ -191,6 +208,378 @@ function buildRows(){
   if(heroNext) heroNext.addEventListener('click', ()=> shiftHero(1));
 }
 
+/* ------- COLLEZIONI (NUOVA SEZIONE) ------- */
+
+// costruisce l'indice delle collezioni a partire da DATA
+function buildCollectionsIndex(){
+  const map = {};
+  (DATA || []).forEach(it => {
+    if(it.tipo === 'film' && it.collezione){
+      const name = String(it.collezione).trim();
+      if(!name) return;
+      if(!map[name]) map[name] = [];
+      map[name].push(it);
+    }
+  });
+
+  COLLECTIONS = Object.entries(map).map(([name, items]) => {
+    // ordiniamo i film della collezione per anno (se presente)
+    items.sort((a,b) => String(a.anno||'').localeCompare(String(b.anno||'')));
+    const posterItem = items.find(x=>x.locandina) || items[0];
+
+    // >>> ECCEZIONE: locandina specifica per "Disney famiglia"
+    // usa controllo case-insensitive sul nome della collezione
+    const specialName = String(name || '').trim().toLowerCase();
+    let posterUrl = (posterItem && posterItem.locandina) || FALLBACK_POSTER;
+    if(specialName === 'disney famiglia') {
+      posterUrl = 'https://i.postimg.cc/MGKFXc5p/disney1.jpg';
+    }
+
+    return {
+      name,
+      items,
+      poster: posterUrl ? escapeUrl(posterUrl) : FALLBACK_POSTER
+    };
+  }).sort((a,b) => a.name.localeCompare(b.name, 'it', {sensitivity:'base'}));
+
+  // reset query quando si ricostruisce l'indice
+  collectionsSearchQuery = ''; // <<<
+}
+
+// render pagina principale collezioni (griglia di schede) + vista alfabetica A-Z
+function renderCollectionsPage(){
+  const app = document.getElementById('main-content');
+  if(!app) return;
+
+  buildCollectionsIndex(); // assicuriamoci che COLLECTIONS sia aggiornata
+
+  app.innerHTML = `
+    <section class="section category-page" id="collections-page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+        <h2>Collezioni</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="collectionsSearchBox" placeholder="Cerca collezione o titolo..." 
+            style="padding:8px;border-radius:6px;background:#0f0f10;color:#eee;border:1px solid #222;min-width:220px;">
+          <div>
+            <button id="collectionsViewGrid" class="btn" style="margin-right:6px;">Griglia</button>
+            <button id="collectionsViewAlpha" class="btn">Elenco A–Z</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="collectionsGrid" class="grid category-grid"></div>
+      <div id="collectionsAlphaWrapper" style="display:none;margin-top:12px;">
+        <div id="collectionsAlphaIndex" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+        <div id="collectionsAlphaContent" class="alpha-content"></div>
+      </div>
+
+      <div style="text-align:center;margin-top:14px;">
+        <button id="collectionsLoadMore" class="load-more">Carica altri</button>
+      </div>
+    </section>
+  `;
+
+  collectionsOffset = 0;
+
+  // --- NUOVA RICERCA COLLEZIONI ---
+  const searchInput = document.getElementById('collectionsSearchBox');
+  if(searchInput){
+    searchInput.value = collectionsSearchQuery || '';
+    searchInput.addEventListener('input', () => {
+      collectionsSearchQuery = (searchInput.value || '').trim().toLowerCase();
+      collectionsOffset = 0;
+      renderCollectionsBatch(true); // reset griglia con filtro
+      // aggiorna anche vista alfabetica
+      renderCollectionsAlpha();
+    });
+  }
+
+  // toggle view buttons
+  const gridBtn = document.getElementById('collectionsViewGrid');
+  const alphaBtn = document.getElementById('collectionsViewAlpha');
+  const gridWrap = document.getElementById('collectionsGrid');
+  const alphaWrapper = document.getElementById('collectionsAlphaWrapper');
+
+  function showGrid(){
+    gridWrap.style.display = '';
+    alphaWrapper.style.display = 'none';
+    gridBtn.classList.add('active');
+    alphaBtn.classList.remove('active');
+  }
+  function showAlpha(){
+    gridWrap.style.display = 'none';
+    alphaWrapper.style.display = '';
+    gridBtn.classList.remove('active');
+    alphaBtn.classList.add('active');
+    renderCollectionsAlpha(); // costruisce la vista alfabetica
+  }
+
+  if(gridBtn) gridBtn.addEventListener('click', showGrid);
+  if(alphaBtn) alphaBtn.addEventListener('click', showAlpha);
+
+  // default: mostra griglia
+  showGrid();
+
+  renderCollectionsBatch(true);
+
+  const loadBtn = document.getElementById('collectionsLoadMore');
+  if(loadBtn){
+    loadBtn.addEventListener('click', () => {
+      collectionsOffset += COLLECTION_BATCH;
+      renderCollectionsBatch(false);
+    });
+  }
+}
+
+// renderizza un "batch" di schede collezioni
+function renderCollectionsBatch(reset){
+  const grid = document.getElementById('collectionsGrid');
+  if(!grid) return;
+
+  // Applichiamo la ricerca su nome collezione e titoli dei film
+  const baseList = COLLECTIONS.filter(col => {
+    if(!collectionsSearchQuery) return true;
+    const q = collectionsSearchQuery;
+    const inName = col.name.toLowerCase().includes(q);
+    const inTitles = col.items.some(it => String(it.titolo||'').toLowerCase().includes(q));
+    return inName || inTitles;
+  });
+
+  if(reset) grid.innerHTML = '';
+
+  const slice = baseList.slice(collectionsOffset, collectionsOffset + COLLECTION_BATCH);
+
+  if(slice.length === 0 && collectionsOffset === 0){
+    grid.innerHTML = '<div style="color:#bbb;padding:16px">Nessuna collezione trovata</div>';
+  } else {
+    slice.forEach(col => {
+      const card = document.createElement('div');
+      card.className = 'card cat-card';
+      card.style.cursor = 'pointer';
+
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = col.name;
+      img.src = col.poster || FALLBACK_POSTER;
+      img.addEventListener('error', ()=> img.src = FALLBACK_POSTER);
+
+      const info = document.createElement('div');
+      info.className = 'info';
+
+      const strong = document.createElement('strong');
+      strong.textContent = col.name;
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+
+      const count = col.items.length;
+      const years = uniq(col.items.map(f=>f.anno).filter(Boolean)).sort();
+      let yearsText = '';
+      if(years.length === 1) yearsText = years[0];
+      else if(years.length > 1) yearsText = `${years[0]} - ${years[years.length-1]}`;
+
+      meta.textContent = `${count} film${count !== 1 ? '' : ''}${yearsText ? ' · ' + yearsText : ''}`;
+
+      info.appendChild(strong);
+      info.appendChild(meta);
+
+      card.appendChild(img);
+      card.appendChild(info);
+
+      card.addEventListener('click', () => openCollectionDetail(col.name));
+
+      grid.appendChild(card);
+    });
+  }
+
+  const loadBtn = document.getElementById('collectionsLoadMore');
+  if(loadBtn){
+    const total = baseList.length;
+    if(collectionsOffset + COLLECTION_BATCH >= total) {
+      loadBtn.style.display = 'none';
+    } else {
+      loadBtn.style.display = 'inline-block';
+    }
+  }
+}
+
+// dettaglio di una singola collezione (tutti i film dentro)
+function openCollectionDetail(name){
+  const col = COLLECTIONS.find(c => c.name === name);
+  const app = document.getElementById('main-content');
+  if(!col || !app) return;
+
+  app.innerHTML = `
+    <section class="section category-page" id="collection-detail">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div>
+          <h2>Collezione: ${escapeHtml(name)}</h2>
+          <div style="color:#bbb;font-size:14px;">${col.items.length} film</div>
+        </div>
+        <button id="collectionBack" class="btn">‹ Torna alle collezioni</button>
+      </div>
+      <div id="collectionDetailGrid" class="grid category-grid"></div>
+    </section>
+  `;
+
+  const grid = document.getElementById('collectionDetailGrid');
+  col.items.forEach(it => grid.appendChild(makeCard(it)));
+
+  const backBtn = document.getElementById('collectionBack');
+  if(backBtn){
+    backBtn.addEventListener('click', () => renderCollectionsPage());
+  }
+}
+
+/* ---------- VISTA ALFABETICA COLLEZIONI (A-Z) ---------- */
+
+// funzione helper: lettera iniziale per etichette (A-Z oppure '#')
+function initialLetterForString(s){
+  if(!s) return '#';
+  const c = s.trim().charAt(0).toUpperCase();
+  if(/[A-ZÀ-Ž]/i.test(c)) return c;
+  return '#';
+}
+
+// costruisce e renderizza la vista alfabetica delle collezioni
+function renderCollectionsAlpha(){
+  // Assicurati che COLLECTIONS sia aggiornato
+  buildCollectionsIndex();
+
+  const indexEl = document.getElementById('collectionsAlphaIndex');
+  const contentEl = document.getElementById('collectionsAlphaContent');
+  if(!indexEl || !contentEl) return;
+
+  // filtra in base alla ricerca corrente
+  const baseList = COLLECTIONS.filter(col => {
+    if(!collectionsSearchQuery) return true;
+    const q = collectionsSearchQuery;
+    const inName = col.name.toLowerCase().includes(q);
+    const inTitles = col.items.some(it => String(it.titolo||'').toLowerCase().includes(q));
+    return inName || inTitles;
+  });
+
+  // mappa lettera -> collezioni
+  const map = {};
+  baseList.forEach(col => {
+    const L = initialLetterForString(col.name);
+    if(!map[L]) map[L] = [];
+    map[L].push(col);
+  });
+
+  const orderedLetters = Object.keys(map).sort((a,b) => {
+    if(a === '#') return 1;
+    if(b === '#') return -1;
+    return a.localeCompare(b, 'it', {sensitivity:'base'});
+  });
+
+  // render index lettere (A..Z + #)
+  indexEl.innerHTML = '';
+  const present = new Set(orderedLetters);
+  const order = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  order.push('#');
+  order.forEach(ch => {
+    const btn = document.createElement('button');
+    btn.className = 'alpha-btn';
+    btn.textContent = ch;
+    btn.style.padding = '6px 8px';
+    btn.style.borderRadius = '6px';
+    btn.style.border = '1px solid transparent';
+    btn.style.background = present.has(ch) ? '#141414' : 'transparent';
+    btn.style.color = present.has(ch) ? '#fff' : '#777';
+    btn.style.cursor = present.has(ch) ? 'pointer' : 'default';
+    if(present.has(ch)) {
+      btn.addEventListener('click', ()=> {
+        const el = document.getElementById(`collections-alpha-section-${ch}`);
+        if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+      });
+    }
+    indexEl.appendChild(btn);
+  });
+
+  // render content
+  contentEl.innerHTML = '';
+  if(orderedLetters.length === 0){
+    contentEl.innerHTML = '<div style="color:#bbb;padding:16px">Nessuna collezione</div>';
+    return;
+  }
+
+  orderedLetters.forEach(letter => {
+    const section = document.createElement('div');
+    section.id = `collections-alpha-section-${letter}`;
+    section.style.marginBottom = '22px';
+    const h = document.createElement('h3'); h.textContent = letter; h.style.margin = '6px 0 10px';
+    section.appendChild(h);
+
+    const list = document.createElement('div'); list.style.display = 'grid'; list.style.gridTemplateColumns = '1fr'; list.style.gap = '8px';
+
+    map[letter].forEach(col => {
+      const row = document.createElement('div');
+      row.className = 'collection-alpha-item';
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.padding = '8px';
+      row.style.borderRadius = '6px';
+      row.style.margin = '6px 0';
+      row.style.background = '#0b0b0b';
+      row.style.cursor = 'pointer';
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '12px';
+
+      const img = document.createElement('img'); img.src = col.poster || FALLBACK_POSTER; img.loading='lazy';
+      img.style.width = '54px'; img.style.height = '76px'; img.style.objectFit = 'cover'; img.style.borderRadius = '4px';
+      img.addEventListener('error', ()=> img.src = FALLBACK_POSTER);
+      const meta = document.createElement('div');
+      const years = uniq(col.items.map(f=>f.anno).filter(Boolean)).sort();
+      let yearsText = '';
+      if(years.length === 1) yearsText = years[0];
+      else if(years.length > 1) yearsText = `${years[0]} - ${years[years.length-1]}`;
+      meta.innerHTML = `<strong style="display:block">${escapeHtml(col.name)}</strong><span style="font-size:12px;color:#bbb">${col.items.length} film${yearsText ? ' · ' + yearsText : ''}</span>`;
+
+      left.appendChild(img); left.appendChild(meta);
+
+      const right = document.createElement('div');
+      right.style.minWidth = '140px';
+      right.style.textAlign = 'right';
+      const openBtn = document.createElement('button');
+      openBtn.className = 'btn';
+      openBtn.textContent = 'Apri';
+      openBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openCollectionDetail(col.name); });
+      right.appendChild(openBtn);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      row.addEventListener('click', ()=> openCollectionDetail(col.name));
+      list.appendChild(row);
+    });
+
+    section.appendChild(list);
+    contentEl.appendChild(section);
+  });
+
+  // sticky behavior per index (simile a pagina lista)
+  const idx = document.getElementById('collectionsAlphaIndex');
+  if(idx){
+    const header = document.querySelector('.site-header');
+    const headerHeight = header ? header.getBoundingClientRect().height : 72;
+    const gap = 8;
+    idx.style.position = 'sticky';
+    idx.style.top = (headerHeight + gap) + 'px';
+    idx.style.zIndex = 1200;
+    idx.style.left = '12px';
+    idx.style.right = '12px';
+    idx.style.background = 'linear-gradient(180deg, rgba(6,6,6,0.95), rgba(6,6,6,0.92))';
+    idx.style.padding = '8px';
+    idx.style.borderRadius = '8px';
+    idx.style.boxShadow = '0 6px 24px rgba(0,0,0,0.6)';
+    idx.style.backdropFilter = 'blur(4px)';
+  }
+}
+
 /* Category page + special 'list' handling */
 function renderCategoryPage(catId){
   if(catId === 'list'){ 
@@ -198,6 +587,14 @@ function renderCategoryPage(catId){
     document.querySelectorAll('.top-tabs .tab').forEach(t=> t.classList.toggle('active', (t.dataset.view===catId)));
     renderListPage(); 
     return; 
+  }
+
+  // speciale: pagina Collezioni
+  if(catId === 'collections'){
+    toggleTopSearch(false);
+    document.querySelectorAll('.top-tabs .tab').forEach(t=> t.classList.toggle('active', (t.dataset.view===catId)));
+    renderCollectionsPage();
+    return;
   }
 
   const app = document.getElementById('main-content');
@@ -218,7 +615,12 @@ function renderCategoryPage(catId){
     </section>
   `;
 
-  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort();
+  // generi normalizzati per la pagina categoria
+  const allGenres = uniq(
+    [].concat(...DATA.map(d=>d.generi||[]))
+      .map(normalizeGenreLabel)
+  ).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+
   const genreSel = document.getElementById('catGenreFilter');
   allGenres.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; genreSel.appendChild(o); });
   const years = uniq(DATA.map(d=>d.anno)).filter(x=>x).sort((a,b)=> b - a);
@@ -401,12 +803,21 @@ function closeModal(){ const m = document.getElementById('detailModal'); if(m){ 
 
 /* filters home */
 function buildFilters(){
-  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort((a,b)=>a.localeCompare(b));
+  // Prende tutti i generi dal DB, li normalizza e li de-duplica
+  const allGenresNorm = uniq(
+    [].concat(...DATA.map(d => d.generi || []))
+      .map(normalizeGenreLabel)
+  ).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+
   const genreSelect = document.getElementById('genreFilter');
   if(genreSelect){
     genreSelect.innerHTML = '<option value="">Tutti i generi</option>';
-    ['Anime','Animation','Animazione'].forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; genreSelect.appendChild(o); });
-    allGenres.forEach(g => { const o=document.createElement('option'); o.value=g; o.textContent=g; genreSelect.appendChild(o); });
+    allGenresNorm.forEach(g => {
+      const o=document.createElement('option');
+      o.value=g;
+      o.textContent=g;
+      genreSelect.appendChild(o);
+    });
     genreSelect.addEventListener('change', applyAllFilters);
   }
   const yearSelect = document.getElementById('yearFilter');
@@ -564,7 +975,7 @@ function renderSearchPage(query){
         <div class="controls-inline">
           <select id="catTypeFilter"><option value="all">Tutti</option><option value="film">Film</option><option value="serie">Serie</option></select>
           <select id="catGenreFilter"><option value="">Tutti i generi</option></select>
-          <select id="catYearFilter"><option value="">Tutti gli anni</option></select>
+          <select id="catYearFilter"><option value="">Tutti gli anni</posteria></select>
           <input id="catSearchBox" placeholder="Raffina ricerca..." style="padding:8px;border-radius:6px;background:#0f0f10;color:#eee;border:1px solid #222">
         </div>
       </div>
@@ -572,7 +983,13 @@ function renderSearchPage(query){
       <div style="text-align:center;margin-top:14px;"><button id="catLoadMore" class="load-more">Carica altri</button></div>
     </section>
   `;
-  const allGenres = uniq([].concat(...DATA.map(d=>d.generi||[]))).sort();
+
+  // generi normalizzati anche nella pagina di ricerca
+  const allGenres = uniq(
+    [].concat(...DATA.map(d=>d.generi||[]))
+      .map(normalizeGenreLabel)
+  ).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+
   const genreSel = document.getElementById('catGenreFilter');
   allGenres.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; genreSel.appendChild(o); });
   const years = uniq(DATA.map(d=>d.anno)).filter(x=>x).sort((a,b)=> b - a);

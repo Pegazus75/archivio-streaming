@@ -87,21 +87,24 @@ body{margin:0;background:#050506;color:#eaeaea;font-family:Inter,Arial,Helvetica
   .modal-body img{width:70%;height:auto}
   .cat-card img { height: 180px; }
 }
+
 /* Stili per pagina elenco alfabetico */
 .alpha-content { max-width:1300px; margin:0 auto; padding:0 12px; }
 .alpha-list-grid { display:flex; flex-direction:column; gap:8px; }
 .alpha-item strong { font-size:15px; color:#fff; }
 .alpha-btn { background:transparent; border:1px solid #222; color:#ddd; padding:6px 8px; border-radius:6px; cursor:pointer; }
 .alpha-btn:hover { opacity:0.9; }
+
 @media (max-width:800px){
   .alpha-item { flex-direction:column; align-items:flex-start; gap:8px; }
   .alpha-item img { width:64px;height:92px; }
 }
+
 /* ---------- ALFABETO STICKY ---------- */
 #alphaIndex {
   position: -webkit-sticky;
   position: sticky;
-  top: 72px;               /* valore di fallback, verrà aggiornato dinamicamente da JS */
+  top: 72px;
   z-index: 1200;
   background: linear-gradient(180deg, rgba(6,6,6,0.95), rgba(6,6,6,0.92));
   padding: 8px;
@@ -126,4 +129,10 @@ body{margin:0;background:#050506;color:#eaeaea;font-family:Inter,Arial,Helvetica
 .alpha-btn[disabled], .alpha-btn[aria-disabled="true"] {
   opacity: 0.45;
   cursor: default;
+}
+
+/* FIX: locandine intere SOLO in HOME */
+.rows .card img{
+  object-fit: contain;
+  background:#000;
 }
