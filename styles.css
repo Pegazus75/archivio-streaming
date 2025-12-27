@@ -34,22 +34,82 @@ body{margin:0;background:#050506;color:#eaeaea;font-family:Inter,Arial,Helvetica
 .carousel-track{display:flex;gap:12px;overflow-x:auto;padding:8px 6px;scroll-behavior:smooth}
 .carousel-track::-webkit-scrollbar{height:9px}
 .carousel-track::-webkit-scrollbar-thumb{background:#222;border-radius:6px}
-.card {min-width:160px;background:#111;border-radius:8px;overflow:hidden;cursor:pointer;flex:0 0 160px;transition:transform .16s;}
+
+/* CARD HOME */
+.card{
+  min-width:160px;
+  flex:0 0 160px;
+  background:#111;
+  border-radius:8px;
+  overflow:hidden;
+  cursor:pointer;
+  transition:transform .16s;
+}
 .card:hover{transform:translateY(-8px)}
-.card img{width:100%;height:230px;object-fit:cover;display:block;background:#111}
+
+/* >>> FIX NETFLIX HOME <<< */
+.rows .card{
+  aspect-ratio: 2 / 3;
+}
+.rows .card img{
+  width:100%;
+  height:100%;
+  object-fit:contain !important;
+  background:#000;
+}
+
+/* default img (fuori home) */
+.card img{
+  width:100%;
+  height:230px;
+  object-fit:cover;
+  display:block;
+  background:#111;
+}
+
 .info{padding:10px}
 .info strong{display:block;font-size:14px;margin-bottom:6px}
 .meta{font-size:12px;color:#bbb;margin-bottom:8px}
 .plot{font-size:13px;color:#ccc;max-height:48px;overflow:hidden}
 
-/* rating badge top-right of poster */
-.rating-badge{position:absolute;right:8px;top:8px;background:#ff4444;color:#fff;padding:4px 7px;border-radius:6px;font-size:12px;z-index:2}
+/* rating badge */
+.rating-badge{
+  position:absolute;
+  right:8px;
+  top:8px;
+  background:#ff4444;
+  color:#fff;
+  padding:4px 7px;
+  border-radius:6px;
+  font-size:12px;
+  z-index:2;
+}
 
 /* carousel controls */
-.carousel-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;background:linear-gradient(90deg, rgba(0,0,0,0.5), transparent);width:60px;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.carousel-nav{
+  position:absolute;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:3;
+  background:linear-gradient(90deg, rgba(0,0,0,0.5), transparent);
+  width:60px;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none
+}
 .carousel-left{left:0}
 .carousel-right{right:0}
-.carousel-nav button{pointer-events:auto;background:rgba(0,0,0,0.6);border:0;color:#fff;padding:10px;border-radius:6px;cursor:pointer}
+.carousel-nav button{
+  pointer-events:auto;
+  background:rgba(0,0,0,0.6);
+  border:0;
+  color:#fff;
+  padding:10px;
+  border-radius:6px;
+  cursor:pointer
+}
 
 /* Modal */
 .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:9999;padding:20px}
@@ -60,23 +120,42 @@ body{margin:0;background:#050506;color:#eaeaea;font-family:Inter,Arial,Helvetica
 .modal-body img{width:300px;height:420px;object-fit:cover;border-radius:6px}
 .modal-info h3{margin:0}
 
-/* Episode / season styles */
-.season-tab{background:#141414;color:#ddd;border:1px solid #222;padding:6px 10px;border-radius:8px;cursor:pointer}
-.season-panel{margin-top:12px;border-radius:6px}
-.episode{margin:8px 0;padding:8px;background:#111;border-radius:6px;display:flex;justify-content:space-between;align-items:center}
-.ep-right a{padding:6px 10px;background:#ff4444;color:white;border-radius:6px;text-decoration:none;font-size:13px}
-
-/* Category grid small cards */
-.category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; align-items: start; }
-.cat-card { background: #111; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; transition: transform .14s; box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
-.cat-card img { width: 100%; height: 260px; object-fit: cover; display: block; background: #111; }
-
-/* search suggestions */
-#searchSuggestions { box-shadow: 0 8px 30px rgba(0,0,0,0.6); border-radius:6px; overflow:auto; }
+/* Category grid */
+.category-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:14px;
+  align-items:start
+}
+.cat-card{
+  background:#111;
+  border-radius:8px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  transition:transform .14s;
+  box-shadow:0 6px 18px rgba(0,0,0,0.6)
+}
+.cat-card img{
+  width:100%;
+  height:260px;
+  object-fit:cover;
+  display:block;
+  background:#111
+}
 
 /* Buttons */
-#catLoadMore, .load-more, .btn { background:#ff4444; border:none; color:#fff; padding:8px 12px; border-radius:6px; cursor:pointer; text-decoration:none; display:inline-block; }
-#catLoadMore:hover, .load-more:hover, .btn:hover { background:#e33; }
+#catLoadMore,.load-more,.btn{
+  background:#ff4444;
+  border:none;
+  color:#fff;
+  padding:8px 12px;
+  border-radius:6px;
+  cursor:pointer;
+  text-decoration:none;
+  display:inline-block
+}
+#catLoadMore:hover,.load-more:hover,.btn:hover{background:#e33}
 
 /* Responsive */
 @media (max-width:800px){
@@ -85,54 +164,30 @@ body{margin:0;background:#050506;color:#eaeaea;font-family:Inter,Arial,Helvetica
   .card{min-width:140px;flex:0 0 140px}
   .modal-body{flex-direction:column;align-items:center}
   .modal-body img{width:70%;height:auto}
-  .cat-card img { height: 180px; }
+  .cat-card img{height:180px}
+}
+/* === OVERRIDE FORZATO HOME – POSTER INTERI (NETFLIX) === */
+.rows .carousel-track .card img{
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  background: #000 !important;
 }
 
-/* Stili per pagina elenco alfabetico */
-.alpha-content { max-width:1300px; margin:0 auto; padding:0 12px; }
-.alpha-list-grid { display:flex; flex-direction:column; gap:8px; }
-.alpha-item strong { font-size:15px; color:#fff; }
-.alpha-btn { background:transparent; border:1px solid #222; color:#ddd; padding:6px 8px; border-radius:6px; cursor:pointer; }
-.alpha-btn:hover { opacity:0.9; }
-
-@media (max-width:800px){
-  .alpha-item { flex-direction:column; align-items:flex-start; gap:8px; }
-  .alpha-item img { width:64px;height:92px; }
+.rows .carousel-track .card{
+  height: auto !important;
+}
+/* === HOME – POSTER INTERI STILE NETFLIX (DEFINITIVO) === */
+.rows .carousel-track .card > div {
+  aspect-ratio: 2 / 3;
+  background: #000;
 }
 
-/* ---------- ALFABETO STICKY ---------- */
-#alphaIndex {
-  position: -webkit-sticky;
-  position: sticky;
-  top: 72px;
-  z-index: 1200;
-  background: linear-gradient(180deg, rgba(6,6,6,0.95), rgba(6,6,6,0.92));
-  padding: 8px;
-  border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
-  backdrop-filter: blur(4px);
+.rows .carousel-track .card > div img {
+  width: 100%;
+  height: 100% !important;
+  object-fit: contain !important;
+  background: #000 !important;
 }
 
-/* Assicura che i bottoni restino leggibili quando sticky */
-.alpha-btn {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.04);
-  color: #ddd;
-  padding: 6px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.alpha-btn[disabled], .alpha-btn[aria-disabled="true"] {
-  opacity: 0.45;
-  cursor: default;
-}
 
-/* FIX: locandine intere SOLO in HOME */
-.rows .card img{
-  object-fit: contain;
-  background:#000;
-}
