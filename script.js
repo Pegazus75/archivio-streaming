@@ -95,7 +95,7 @@ let collectionsOffset = 0;   // offset per "Carica altri"
 let collectionsSearchQuery = ''; // <<< query ricerca collezioni
 
 // QUI IL NUOVO LINK:
-const DB_URL = "https://raw.githubusercontent.com/Pegazus75/archivio-streaming/main/database.json";
+const DB_URL = "https://pub-f5e430cfb3c84cfca4f303c8ff550ca6.r2.dev/database.json";
 
 async function loadDatabase(){
   try {
