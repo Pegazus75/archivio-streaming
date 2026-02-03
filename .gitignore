@@ -1,2 +1,5 @@
 database.json
 Visual Studio Code.lnk
+deploy_to_github.bat
+update_db_and_push.bat
+archivio-streaming
